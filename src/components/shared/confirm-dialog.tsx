@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import * as React from "react";
 import {
@@ -29,9 +29,10 @@ export function ConfirmDialog({
   confirmLabel?: string;
   cancelLabel?: string;
   destructive?: boolean;
-  onConfirm: () => void;
+  onConfirm: () => void | boolean | Promise<void | boolean>;
   children?: React.ReactNode;
 }) {
+  const [busy, setBusy] = React.useState(false);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
@@ -46,12 +47,17 @@ export function ConfirmDialog({
           </Button>
           <Button
             variant={destructive ? "danger" : "default"}
-            onClick={() => {
-              onConfirm();
-              onOpenChange(false);
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                if ((await onConfirm()) !== false) onOpenChange(false);
+              } finally {
+                setBusy(false);
+              }
             }}
           >
-            {confirmLabel}
+            {busy ? "Saving…" : confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -43,12 +43,14 @@ import { SearchInput } from "../components/shared/search-input";
 import { EmptyState } from "../components/shared/empty-state";
 import { Pagination } from "../components/shared/pagination";
 import { Avatar } from "../components/shared/thumb";
-import { OrderStatusBadge, PaymentStatusBadge } from "../components/shared/status-badges";
-import { useSimulatedLoading } from "../components/shared/use-simulated-loading";
+import {
+  OrderStatusBadge,
+  PaymentStatusBadge,
+} from "../components/shared/status-badges";
 import { TableSkeleton } from "../components/ui/skeleton";
 import { useToast } from "../components/ui/toast";
 import { useStore } from "../data/store";
-import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "../data/mock";
+import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "../data/constants";
 import { formatDate, formatPKR } from "../lib/format";
 import { cn } from "../lib/utils";
 import type { OrderStatus, PaymentMethodId, PaymentStatus } from "../lib/types";
@@ -58,11 +60,13 @@ type SortKey = "newest" | "oldest" | "total-desc" | "total-asc";
 export default function OrdersPage() {
   const { state, setOrderStatus } = useStore();
   const { toast } = useToast();
-  const loading = useSimulatedLoading(320);
+  const { loading } = useStore();
 
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"all" | OrderStatus>("all");
-  const [paymentStatus, setPaymentStatus] = useState<"all" | PaymentStatus>("all");
+  const [paymentStatus, setPaymentStatus] = useState<"all" | PaymentStatus>(
+    "all",
+  );
   const [method, setMethod] = useState<"all" | PaymentMethodId>("all");
   const [sort, setSort] = useState<SortKey>("newest");
   const [page, setPage] = useState(1);
@@ -103,7 +107,10 @@ export default function OrdersPage() {
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, pageCount);
-  const visible = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const visible = filtered.slice(
+    (safePage - 1) * pageSize,
+    safePage * pageSize,
+  );
 
   const stats = [
     {
@@ -126,7 +133,10 @@ export default function OrdersPage() {
     {
       label: "In fulfilment",
       value: state.orders.filter(
-        (o) => o.status === "confirmed" || o.status === "processing" || o.status === "shipped",
+        (o) =>
+          o.status === "confirmed" ||
+          o.status === "processing" ||
+          o.status === "shipped",
       ).length,
       icon: Truck,
       tone: "brand",
@@ -176,7 +186,9 @@ export default function OrdersPage() {
           <Card key={stat.label}>
             <CardContent className="flex items-start justify-between p-4">
               <div>
-                <p className="text-[12px] font-medium text-ink-muted">{stat.label}</p>
+                <p className="text-[12px] font-medium text-ink-muted">
+                  {stat.label}
+                </p>
                 <p className="mt-1.5 text-[20px] font-semibold leading-none text-ink tabular">
                   {stat.value}
                 </p>
@@ -271,7 +283,10 @@ export default function OrdersPage() {
                 </SelectContent>
               </Select>
 
-              <Select value={sort} onValueChange={(value) => setSort(value as SortKey)}>
+              <Select
+                value={sort}
+                onValueChange={(value) => setSort(value as SortKey)}
+              >
                 <SelectTrigger className="w-[160px]">
                   <SelectValue />
                 </SelectTrigger>
@@ -283,7 +298,10 @@ export default function OrdersPage() {
                 </SelectContent>
               </Select>
 
-              {(query || status !== "all" || paymentStatus !== "all" || method !== "all") && (
+              {(query ||
+                status !== "all" ||
+                paymentStatus !== "all" ||
+                method !== "all") && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -366,7 +384,9 @@ export default function OrdersPage() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="whitespace-nowrap">{formatDate(order.date)}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {formatDate(order.date)}
+                      </TableCell>
                       <TableCell className="text-right tabular">
                         {order.items.reduce((sum, i) => sum + i.quantity, 0)}
                       </TableCell>
@@ -382,7 +402,11 @@ export default function OrdersPage() {
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon-sm" aria-label="Order actions">
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label="Order actions"
+                            >
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -398,12 +422,16 @@ export default function OrdersPage() {
                             {statusOptions.map((option) => (
                               <DropdownMenuItem
                                 key={option}
-                                onClick={() => {
-                                  setOrderStatus(order.id, option);
-                                  toast({
-                                    title: `Order moved to ${ORDER_STATUS_LABEL[option]}`,
-                                    description: `${order.orderNumber} updated.`,
-                                  });
+                                onClick={async () => {
+                                  try {
+                                    await setOrderStatus(order.id, option);
+                                    toast({
+                                      title: `Order moved to ${ORDER_STATUS_LABEL[option]}`,
+                                      description: `${order.orderNumber} updated.`,
+                                    });
+                                  } catch {
+                                    return false;
+                                  }
                                 }}
                               >
                                 Mark as {ORDER_STATUS_LABEL[option]}

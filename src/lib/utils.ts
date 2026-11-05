@@ -24,14 +24,11 @@ export function initials(name: string) {
     .join("");
 }
 
-export function uid(prefix = "id") {
-  return `${prefix}_${Math.random().toString(36).slice(2, 9)}${Date.now()
-    .toString(36)
-    .slice(-4)}`;
+export function uid(_prefix = "id") {
+  return crypto.randomUUID();
 }
-
-export function uniqueId(prefix = "id") {
-  return `${prefix}-${Math.random().toString(36).slice(2, 7)}`;
+export function uniqueId(_prefix = "id") {
+  return crypto.randomUUID();
 }
 
 export function clamp(value: number, min: number, max: number) {

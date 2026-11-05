@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useEffect, useState } from "react";
 import { Clock, PackageCheck, Pencil, Plus, Trash2, Truck } from "lucide-react";
@@ -33,7 +33,9 @@ export default function ShippingPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ShippingMethod | null>(null);
 
-  const methods = [...state.shippingMethods].sort((a, b) => a.displayOrder - b.displayOrder);
+  const methods = [...state.shippingMethods].sort(
+    (a, b) => a.displayOrder - b.displayOrder,
+  );
 
   const openCreate = () => {
     setEditing({
@@ -88,15 +90,23 @@ export default function ShippingPage() {
                     </span>
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-[14px] font-semibold text-ink">{method.name}</p>
+                        <p className="text-[14px] font-semibold text-ink">
+                          {method.name}
+                        </p>
                         <Badge variant={method.active ? "success" : "neutral"}>
                           {method.active ? "Active" : "Inactive"}
                         </Badge>
                       </div>
-                      <p className="mt-0.5 text-[12.5px] text-ink-muted">{method.description}</p>
+                      <p className="mt-0.5 text-[12.5px] text-ink-muted">
+                        {method.description}
+                      </p>
                     </div>
                   </div>
-                  <Button variant="outline" size="sm" onClick={() => openEdit(method)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openEdit(method)}
+                  >
                     <Pencil className="h-3.5 w-3.5" />
                     Edit
                   </Button>
@@ -104,7 +114,9 @@ export default function ShippingPage() {
 
                 <dl className="mt-4 grid grid-cols-2 gap-4 border-t border-line pt-4 sm:grid-cols-3">
                   <div>
-                    <dt className="text-[11.5px] text-ink-muted">Shipping price</dt>
+                    <dt className="text-[11.5px] text-ink-muted">
+                      Shipping price
+                    </dt>
                     <dd className="mt-0.5 text-[14px] font-semibold text-ink tabular">
                       {method.price === 0 ? "Free" : formatPKR(method.price)}
                     </dd>
@@ -136,12 +148,21 @@ export default function ShippingPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => {
-                        saveShippingMethod({ ...method, active: !method.active });
-                        toast({
-                          title: method.active ? "Method disabled" : "Method enabled",
-                          description: method.name,
-                        });
+                      onClick={async () => {
+                        try {
+                          await saveShippingMethod({
+                            ...method,
+                            active: !method.active,
+                          });
+                          toast({
+                            title: method.active
+                              ? "Method disabled"
+                              : "Method enabled",
+                            description: method.name,
+                          });
+                        } catch {
+                          return false;
+                        }
                       }}
                     >
                       {method.active ? "Disable" : "Enable"}
@@ -166,13 +187,19 @@ export default function ShippingPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         method={editing}
-        onSave={(method) => {
-          saveShippingMethod(method);
-          toast({
-            title: editing?.name ? "Shipping method updated" : "Shipping method created",
-            description: method.name,
-          });
-          setDialogOpen(false);
+        onSave={async (method) => {
+          try {
+            await saveShippingMethod(method);
+            toast({
+              title: editing?.name
+                ? "Shipping method updated"
+                : "Shipping method created",
+              description: method.name,
+            });
+            setDialogOpen(false);
+          } catch {
+            return false;
+          }
         }}
       />
 
@@ -181,14 +208,20 @@ export default function ShippingPage() {
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         title="Delete shipping method?"
         description={
-          deleteTarget ? `“${deleteTarget.name}” will no longer be offered at checkout.` : undefined
+          deleteTarget
+            ? `“${deleteTarget.name}” will no longer be offered at checkout.`
+            : undefined
         }
         confirmLabel="Delete method"
         destructive
-        onConfirm={() => {
-          if (!deleteTarget) return;
-          deleteShippingMethod(deleteTarget.id);
-          toast({ title: "Shipping method deleted", variant: "error" });
+        onConfirm={async () => {
+          try {
+            if (!deleteTarget) return;
+            await deleteShippingMethod(deleteTarget.id);
+            toast({ title: "Shipping method deleted", variant: "error" });
+          } catch {
+            return false;
+          }
         }}
       />
     </div>
@@ -219,7 +252,9 @@ function ShippingDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{method?.name ? "Edit shipping method" : "New shipping method"}</DialogTitle>
+          <DialogTitle>
+            {method?.name ? "Edit shipping method" : "New shipping method"}
+          </DialogTitle>
           <DialogDescription>
             Delivery charges are shown in PKR at checkout before payment.
           </DialogDescription>
@@ -241,7 +276,9 @@ function ShippingDialog({
                 id="ship-desc"
                 rows={2}
                 value={draft.description}
-                onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+                onChange={(e) =>
+                  setDraft({ ...draft, description: e.target.value })
+                }
                 placeholder="Which courier and coverage this method uses"
               />
             </div>
@@ -252,7 +289,9 @@ function ShippingDialog({
                 type="number"
                 min={0}
                 value={draft.price}
-                onChange={(e) => setDraft({ ...draft, price: Number(e.target.value) })}
+                onChange={(e) =>
+                  setDraft({ ...draft, price: Number(e.target.value) })
+                }
               />
             </div>
             <div>
@@ -266,7 +305,8 @@ function ShippingDialog({
                 onChange={(e) =>
                   setDraft({
                     ...draft,
-                    freeShippingThreshold: e.target.value === "" ? null : Number(e.target.value),
+                    freeShippingThreshold:
+                      e.target.value === "" ? null : Number(e.target.value),
                   })
                 }
               />
@@ -278,7 +318,9 @@ function ShippingDialog({
                 type="number"
                 min={0}
                 value={draft.minDays}
-                onChange={(e) => setDraft({ ...draft, minDays: Number(e.target.value) })}
+                onChange={(e) =>
+                  setDraft({ ...draft, minDays: Number(e.target.value) })
+                }
               />
             </div>
             <div>
@@ -288,7 +330,9 @@ function ShippingDialog({
                 type="number"
                 min={0}
                 value={draft.maxDays}
-                onChange={(e) => setDraft({ ...draft, maxDays: Number(e.target.value) })}
+                onChange={(e) =>
+                  setDraft({ ...draft, maxDays: Number(e.target.value) })
+                }
               />
             </div>
             <div>
@@ -298,15 +342,21 @@ function ShippingDialog({
                 type="number"
                 min={1}
                 value={draft.displayOrder}
-                onChange={(e) => setDraft({ ...draft, displayOrder: Number(e.target.value) })}
+                onChange={(e) =>
+                  setDraft({ ...draft, displayOrder: Number(e.target.value) })
+                }
               />
             </div>
             <div className="flex items-end">
               <div className="flex w-full items-center justify-between rounded-md border border-line bg-surface-muted/60 px-3 py-2">
-                <span className="text-[12.5px] font-medium text-ink">Active</span>
+                <span className="text-[12.5px] font-medium text-ink">
+                  Active
+                </span>
                 <Switch
                   checked={draft.active}
-                  onCheckedChange={(checked) => setDraft({ ...draft, active: checked })}
+                  onCheckedChange={(checked) =>
+                    setDraft({ ...draft, active: checked })
+                  }
                 />
               </div>
             </div>
@@ -314,7 +364,8 @@ function ShippingDialog({
 
           <div className="flex items-start gap-2 rounded-md border border-brand-100 bg-brand-50 px-3 py-2.5 text-[12px] text-brand-800">
             <PackageCheck className="mt-0.5 h-4 w-4 shrink-0" />
-            Orders above the free-shipping threshold automatically receive this method at no charge.
+            Orders above the free-shipping threshold automatically receive this
+            method at no charge.
           </div>
         </DialogBody>
         <DialogFooter>

@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -38,7 +38,6 @@ import {
 import { PageHeader } from "../components/shared/page-header";
 import { ProductThumb } from "../components/shared/thumb";
 import { OrderStatusBadge } from "../components/shared/status-badges";
-import { useSimulatedLoading } from "../components/shared/use-simulated-loading";
 import { Skeleton } from "../components/ui/skeleton";
 import { useStore, productTotalStock } from "../data/store";
 import { formatDate, formatPKR } from "../lib/format";
@@ -69,30 +68,51 @@ const STATUS_COLORS: Partial<Record<OrderStatus, string>> = {
 export default function Dashboard() {
   const { state } = useStore();
   const [period, setPeriod] = useState<Period>("30d");
-  const loading = useSimulatedLoading(400);
+  const { loading } = useStore();
 
   const orders = state.orders;
-  const billable = orders.filter((o) => o.status !== "cancelled" && o.status !== "refunded");
+  const billable = orders.filter(
+    (o) => o.status !== "cancelled" && o.status !== "refunded",
+  );
 
   const revenue = billable.reduce((sum, o) => sum + o.total, 0);
   const pendingOrders = orders.filter(
-    (o) => o.status === "awaiting_payment" || o.status === "payment_submitted" || o.status === "pending_cod",
+    (o) =>
+      o.status === "awaiting_payment" ||
+      o.status === "payment_submitted" ||
+      o.status === "pending_cod",
   ).length;
-  const activeProducts = state.products.filter((p) => p.status === "active").length;
-  const totalUnits = state.products.reduce((sum, p) => sum + productTotalStock(p), 0);
+  const activeProducts = state.products.filter(
+    (p) => p.status === "active",
+  ).length;
+  const totalUnits = state.products.reduce(
+    (sum, p) => sum + productTotalStock(p),
+    0,
+  );
 
   const previousPeriod = useMemo(() => {
     const now = Date.now();
-    const ranges: Record<Period, number> = { "7d": 7, "30d": 30, "90d": 90, "12m": 365 };
+    const ranges: Record<Period, number> = {
+      "7d": 7,
+      "30d": 30,
+      "90d": 90,
+      "12m": 365,
+    };
     const span = ranges[period];
-    const current = billable.filter((o) => now - +new Date(o.date) <= span * 86400000);
+    const current = billable.filter(
+      (o) => now - +new Date(o.date) <= span * 86400000,
+    );
     const currentTotal = current.reduce((sum, o) => sum + o.total, 0);
     const previous = billable.filter(
       (o) =>
-        now - +new Date(o.date) > span * 86400000 && now - +new Date(o.date) <= span * 2 * 86400000,
+        now - +new Date(o.date) > span * 86400000 &&
+        now - +new Date(o.date) <= span * 2 * 86400000,
     );
     const previousTotal = previous.reduce((sum, o) => sum + o.total, 0);
-    const change = previousTotal === 0 ? 100 : ((currentTotal - previousTotal) / previousTotal) * 100;
+    const change =
+      previousTotal === 0
+        ? 100
+        : ((currentTotal - previousTotal) / previousTotal) * 100;
     return { currentTotal, previousTotal, change };
   }, [billable, period]);
 
@@ -116,7 +136,10 @@ export default function Dashboard() {
           label:
             period === "7d"
               ? date.toLocaleDateString("en-GB", { weekday: "short" })
-              : date.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }),
+              : date.toLocaleDateString("en-GB", {
+                  day: "2-digit",
+                  month: "short",
+                }),
           revenue: inBucket.reduce((sum, o) => sum + o.total, 0),
           orders: inBucket.length,
         });
@@ -133,7 +156,10 @@ export default function Dashboard() {
           return t >= +start && t <= +end;
         });
         buckets.push({
-          label: start.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }),
+          label: start.toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+          }),
           revenue: inBucket.reduce((sum, o) => sum + o.total, 0),
           orders: inBucket.length,
         });
@@ -161,19 +187,26 @@ export default function Dashboard() {
 
   const statusBreakdown = useMemo(() => {
     const counts = new Map<OrderStatus, number>();
-    orders.forEach((o) => counts.set(o.status, (counts.get(o.status) ?? 0) + 1));
+    orders.forEach((o) =>
+      counts.set(o.status, (counts.get(o.status) ?? 0) + 1),
+    );
     return [...counts.entries()]
       .map(([status, count]) => ({
         status,
         count,
-        label: status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+        label: status
+          .replace(/_/g, " ")
+          .replace(/\b\w/g, (c) => c.toUpperCase()),
         value: count,
       }))
       .sort((a, b) => b.count - a.count);
   }, [orders]);
 
   const topProducts = useMemo(() => {
-    const map = new Map<string, { name: string; units: number; revenue: number; image: string }>();
+    const map = new Map<
+      string,
+      { name: string; units: number; revenue: number; image: string }
+    >();
     billable.forEach((order) =>
       order.items.forEach((item) => {
         const existing = map.get(item.productId) ?? {
@@ -270,7 +303,9 @@ export default function Dashboard() {
             <CardContent className="p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[12px] font-medium text-ink-muted">{stat.label}</p>
+                  <p className="text-[12px] font-medium text-ink-muted">
+                    {stat.label}
+                  </p>
                   {loading ? (
                     <Skeleton className="mt-2 h-7 w-28" />
                   ) : (
@@ -313,7 +348,8 @@ export default function Dashboard() {
             <div>
               <h2 className="text-[15px] font-semibold text-ink">Revenue</h2>
               <p className="text-[12.5px] text-ink-muted">
-                {loading ? "Loading…" : formatPKR(previousPeriod.currentTotal)} in {PERIOD_LABEL[period].toLowerCase()}
+                {loading ? "Loading…" : formatPKR(previousPeriod.currentTotal)}{" "}
+                in {PERIOD_LABEL[period].toLowerCase()}
               </p>
             </div>
             <div className="flex rounded-md border border-line bg-surface-muted p-0.5">
@@ -338,19 +374,44 @@ export default function Dashboard() {
               {loading ? (
                 <div className="flex h-full items-end gap-2 px-4 pb-6">
                   {[40, 65, 30, 80, 55, 70, 45].map((h, i) => (
-                    <Skeleton key={i} className="flex-1" style={{ height: `${h}%` }} />
+                    <Skeleton
+                      key={i}
+                      className="flex-1"
+                      style={{ height: `${h}%` }}
+                    />
                   ))}
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
+                  <AreaChart
+                    data={chartData}
+                    margin={{ top: 8, right: 12, left: 4, bottom: 0 }}
+                  >
                     <defs>
-                      <linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#0e7c6b" stopOpacity={0.22} />
-                        <stop offset="100%" stopColor="#0e7c6b" stopOpacity={0.02} />
+                      <linearGradient
+                        id="revenueFill"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="0%"
+                          stopColor="#0e7c6b"
+                          stopOpacity={0.22}
+                        />
+                        <stop
+                          offset="100%"
+                          stopColor="#0e7c6b"
+                          stopOpacity={0.02}
+                        />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef0f3" />
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      vertical={false}
+                      stroke="#eef0f3"
+                    />
                     <XAxis
                       dataKey="label"
                       tickLine={false}
@@ -363,7 +424,9 @@ export default function Dashboard() {
                       axisLine={false}
                       width={52}
                       tick={{ fontSize: 11, fill: "#78839a" }}
-                      tickFormatter={(v: number) => (v >= 1000 ? `${v / 1000}k` : `${v}`)}
+                      tickFormatter={(v: number) =>
+                        v >= 1000 ? `${v / 1000}k` : `${v}`
+                      }
                     />
                     <Tooltip
                       cursor={{ stroke: "#cbd5e1", strokeDasharray: "4 4" }}
@@ -387,7 +450,9 @@ export default function Dashboard() {
         <Card>
           <CardHeader>
             <h2 className="text-[15px] font-semibold text-ink">Order status</h2>
-            <p className="text-[12.5px] text-ink-muted">Breakdown of all {orders.length} orders</p>
+            <p className="text-[12.5px] text-ink-muted">
+              Breakdown of all {orders.length} orders
+            </p>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -408,7 +473,10 @@ export default function Dashboard() {
                       {statusBreakdown.map((entry) => (
                         <Cell
                           key={entry.status}
-                          fill={STATUS_COLORS[entry.status as OrderStatus] ?? "#94a3b8"}
+                          fill={
+                            STATUS_COLORS[entry.status as OrderStatus] ??
+                            "#94a3b8"
+                          }
                         />
                       ))}
                     </Pie>
@@ -416,20 +484,34 @@ export default function Dashboard() {
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-[22px] font-semibold text-ink tabular">{orders.length}</span>
-                  <span className="text-[11px] uppercase tracking-wider text-ink-muted">orders</span>
+                  <span className="text-[22px] font-semibold text-ink tabular">
+                    {orders.length}
+                  </span>
+                  <span className="text-[11px] uppercase tracking-wider text-ink-muted">
+                    orders
+                  </span>
                 </div>
               </div>
             )}
             <div className="mt-4 space-y-1.5">
               {statusBreakdown.map((entry) => (
-                <div key={entry.status} className="flex items-center gap-2 text-[12.5px]">
+                <div
+                  key={entry.status}
+                  className="flex items-center gap-2 text-[12.5px]"
+                >
                   <span
                     className="h-2.5 w-2.5 shrink-0 rounded-sm"
-                    style={{ backgroundColor: STATUS_COLORS[entry.status as OrderStatus] ?? "#94a3b8" }}
+                    style={{
+                      backgroundColor:
+                        STATUS_COLORS[entry.status as OrderStatus] ?? "#94a3b8",
+                    }}
                   />
-                  <span className="flex-1 truncate text-ink-soft">{entry.label}</span>
-                  <span className="font-medium text-ink tabular">{entry.count}</span>
+                  <span className="flex-1 truncate text-ink-soft">
+                    {entry.label}
+                  </span>
+                  <span className="font-medium text-ink tabular">
+                    {entry.count}
+                  </span>
                 </div>
               ))}
             </div>
@@ -440,7 +522,9 @@ export default function Dashboard() {
       <div className="grid gap-4 xl:grid-cols-3">
         <Card className="xl:col-span-2">
           <CardHeader className="flex-row items-center justify-between gap-3">
-            <h2 className="text-[15px] font-semibold text-ink">Recent orders</h2>
+            <h2 className="text-[15px] font-semibold text-ink">
+              Recent orders
+            </h2>
             <Button variant="ghost" size="sm" asChild>
               <Link href="/orders">
                 View all
@@ -477,7 +561,9 @@ export default function Dashboard() {
                           {order.orderNumber}
                         </Link>
                       </TableCell>
-                      <TableCell className="text-ink">{order.customerName}</TableCell>
+                      <TableCell className="text-ink">
+                        {order.customerName}
+                      </TableCell>
                       <TableCell>{formatDate(order.date)}</TableCell>
                       <TableCell className="font-medium text-ink tabular">
                         {formatPKR(order.total)}
@@ -496,39 +582,53 @@ export default function Dashboard() {
         <div className="space-y-4">
           <Card>
             <CardHeader className="flex-row items-center justify-between gap-3">
-              <h2 className="text-[15px] font-semibold text-ink">Top sellers</h2>
+              <h2 className="text-[15px] font-semibold text-ink">
+                Top sellers
+              </h2>
               <Badge variant="brand">By revenue</Badge>
             </CardHeader>
             <CardContent className="space-y-3">
-              {loading ? (
-                Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)
-              ) : (
-                topProducts.map((product) => (
-                  <div key={product.id} className="flex items-center gap-3">
-                    <ProductThumb src={product.image} alt={product.name} size="sm" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-medium text-ink">{product.name}</p>
-                      <p className="text-[11.5px] text-ink-muted">{product.units} units sold</p>
+              {loading
+                ? Array.from({ length: 4 }).map((_, i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))
+                : topProducts.map((product) => (
+                    <div key={product.id} className="flex items-center gap-3">
+                      <ProductThumb
+                        src={product.image}
+                        alt={product.name}
+                        size="sm"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-medium text-ink">
+                          {product.name}
+                        </p>
+                        <p className="text-[11.5px] text-ink-muted">
+                          {product.units} units sold
+                        </p>
+                      </div>
+                      <span className="text-[13px] font-semibold text-ink tabular">
+                        {formatPKR(product.revenue)}
+                      </span>
                     </div>
-                    <span className="text-[13px] font-semibold text-ink tabular">
-                      {formatPKR(product.revenue)}
-                    </span>
-                  </div>
-                ))
-              )}
+                  ))}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex-row items-center justify-between gap-3">
-              <h2 className="text-[15px] font-semibold text-ink">Low stock alerts</h2>
+              <h2 className="text-[15px] font-semibold text-ink">
+                Low stock alerts
+              </h2>
               <Button variant="ghost" size="sm" asChild>
                 <Link href="/inventory">Inventory</Link>
               </Button>
             </CardHeader>
             <CardContent className="space-y-2.5">
               {lowStock.length === 0 ? (
-                <p className="text-[13px] text-ink-muted">All variants are above their reorder level.</p>
+                <p className="text-[13px] text-ink-muted">
+                  All variants are above their reorder level.
+                </p>
               ) : (
                 lowStock.map(({ product, variant }) => (
                   <Link
@@ -538,8 +638,12 @@ export default function Dashboard() {
                   >
                     <TriangleAlert className="h-4 w-4 shrink-0 text-amber-600" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[12.5px] font-medium text-ink">{product.name}</p>
-                      <p className="truncate text-[11.5px] text-ink-muted">{variant.name}</p>
+                      <p className="truncate text-[12.5px] font-medium text-ink">
+                        {product.name}
+                      </p>
+                      <p className="truncate text-[11.5px] text-ink-muted">
+                        {variant.name}
+                      </p>
                     </div>
                     <Badge variant="warning">{variant.stock} left</Badge>
                   </Link>
@@ -553,14 +657,36 @@ export default function Dashboard() {
       <Card>
         <CardHeader>
           <h2 className="text-[15px] font-semibold text-ink">Quick actions</h2>
-          <p className="text-[12.5px] text-ink-muted">Common admin tasks, one click away.</p>
+          <p className="text-[12.5px] text-ink-muted">
+            Common admin tasks, one click away.
+          </p>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { href: "/products/new", label: "Add new product", hint: "Create a listing with variants", icon: PackagePlus },
-            { href: "/orders", label: "Review orders", hint: `${pendingOrders} orders need attention`, icon: ShoppingBag },
-            { href: "/payments", label: "Verify payments", hint: "Approve or reject submissions", icon: CircleDollarSign },
-            { href: "/inventory", label: "Adjust stock", hint: "Restock or correct inventory", icon: Boxes },
+            {
+              href: "/products/new",
+              label: "Add new product",
+              hint: "Create a listing with variants",
+              icon: PackagePlus,
+            },
+            {
+              href: "/orders",
+              label: "Review orders",
+              hint: `${pendingOrders} orders need attention`,
+              icon: ShoppingBag,
+            },
+            {
+              href: "/payments",
+              label: "Verify payments",
+              hint: "Approve or reject submissions",
+              icon: CircleDollarSign,
+            },
+            {
+              href: "/inventory",
+              label: "Adjust stock",
+              hint: "Restock or correct inventory",
+              icon: Boxes,
+            },
           ].map((action) => (
             <Link
               key={action.href}
@@ -571,8 +697,12 @@ export default function Dashboard() {
                 <action.icon className="h-4 w-4" />
               </span>
               <span className="min-w-0">
-                <span className="block text-[13px] font-semibold text-ink">{action.label}</span>
-                <span className="mt-0.5 block text-[12px] text-ink-muted">{action.hint}</span>
+                <span className="block text-[13px] font-semibold text-ink">
+                  {action.label}
+                </span>
+                <span className="mt-0.5 block text-[12px] text-ink-muted">
+                  {action.hint}
+                </span>
               </span>
             </Link>
           ))}
@@ -597,8 +727,12 @@ function ChartTooltip({
   const orders = entry?.payload?.orders;
   return (
     <div className="rounded-lg border border-line bg-surface px-3 py-2 shadow-[0_8px_24px_-10px_rgba(13,20,36,0.3)]">
-      <p className="text-[11px] font-medium uppercase tracking-wider text-ink-muted">{label}</p>
-      <p className="mt-0.5 text-[13px] font-semibold text-ink tabular">{formatPKR(value)}</p>
+      <p className="text-[11px] font-medium uppercase tracking-wider text-ink-muted">
+        {label}
+      </p>
+      <p className="mt-0.5 text-[13px] font-semibold text-ink tabular">
+        {formatPKR(value)}
+      </p>
       {orders !== undefined && (
         <p className="text-[11.5px] text-ink-muted">
           {orders} order{orders === 1 ? "" : "s"}

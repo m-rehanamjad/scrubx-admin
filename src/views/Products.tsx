@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -46,20 +46,23 @@ import { SearchInput } from "../components/shared/search-input";
 import { EmptyState } from "../components/shared/empty-state";
 import { Pagination } from "../components/shared/pagination";
 import { ConfirmDialog } from "../components/shared/confirm-dialog";
-import { ProductStatusBadge, StockBadge } from "../components/shared/status-badges";
-import { useSimulatedLoading } from "../components/shared/use-simulated-loading";
+import {
+  ProductStatusBadge,
+  StockBadge,
+} from "../components/shared/status-badges";
 import { TableSkeleton } from "../components/ui/skeleton";
 import { useStore, productTotalStock } from "../data/store";
 import { formatPKR } from "../lib/format";
 import { useToast } from "../components/ui/toast";
 import type { Product, ProductStatus } from "../lib/types";
 
-type SortKey = "newest" | "name" | "price-asc" | "price-desc" | "stock-asc" | "stock-desc";
+type SortKey =
+  "newest" | "name" | "price-asc" | "price-desc" | "stock-asc" | "stock-desc";
 
 export default function ProductsPage() {
   const { state, deleteProduct, setProductStatus, setProducts } = useStore();
   const { toast } = useToast();
-  const loading = useSimulatedLoading(300);
+  const { loading } = useStore();
 
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
@@ -74,7 +77,10 @@ export default function ProductsPage() {
     const leaf = state.categories.filter((c) => c.parentId);
     return leaf.map((c) => {
       const parent = state.categories.find((p) => p.id === c.parentId);
-      return { id: c.id, label: parent ? `${parent.name} / ${c.name}` : c.name };
+      return {
+        id: c.id,
+        label: parent ? `${parent.name} / ${c.name}` : c.name,
+      };
     });
   }, [state.categories]);
 
@@ -87,7 +93,8 @@ export default function ProductsPage() {
         product.slug.includes(q) ||
         product.brand.toLowerCase().includes(q) ||
         product.variants.some((v) => v.sku.toLowerCase().includes(q));
-      const matchesCategory = category === "all" || product.categoryId === category;
+      const matchesCategory =
+        category === "all" || product.categoryId === category;
       const matchesStatus = status === "all" || product.status === status;
       return matchesQuery && matchesCategory && matchesStatus;
     });
@@ -114,47 +121,77 @@ export default function ProductsPage() {
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, pageCount);
-  const visible = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const visible = filtered.slice(
+    (safePage - 1) * pageSize,
+    safePage * pageSize,
+  );
 
   const toggleSelect = (id: string) => {
-    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
   };
 
   const toggleAll = () => {
     const allSelected = visible.every((p) => selected.includes(p.id));
-    setSelected(allSelected ? [] : [...new Set([...selected, ...visible.map((p) => p.id)])]);
-  };
-
-  const archiveSelected = () => {
-    setProducts((prev) =>
-      prev.map((p) =>
-        selected.includes(p.id) ? { ...p, status: "archived" as ProductStatus, updatedAt: new Date().toISOString() } : p,
-      ),
+    setSelected(
+      allSelected
+        ? []
+        : [...new Set([...selected, ...visible.map((p) => p.id)])],
     );
-    toast({
-      title: `${selected.length} product${selected.length === 1 ? "" : "s"} archived`,
-      description: "Archived products are hidden from the storefront.",
-    });
-    setSelected([]);
   };
 
-  const duplicateProduct = (product: Product) => {
-    const copy: Product = {
-      ...product,
-      id: `prd-${Date.now().toString(36)}`,
-      name: `${product.name} (Copy)`,
-      slug: `${product.slug}-copy`,
-      status: "draft",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      variants: product.variants.map((v) => ({
-        ...v,
-        id: `${v.id}-${Date.now().toString(36)}`,
-        sku: `${v.sku}-CP`,
-      })),
-    };
-    setProducts((prev) => [copy, ...prev]);
-    toast({ title: "Product duplicated", description: `${copy.name} created as a draft.` });
+  const archiveSelected = async () => {
+    try {
+      await setProducts((prev) =>
+        prev.map((p) =>
+          selected.includes(p.id)
+            ? { ...p, status: "archived" as ProductStatus }
+            : p,
+        ),
+      );
+      toast({
+        title: `${selected.length} product${selected.length === 1 ? "" : "s"} archived`,
+        description: "Archived products are hidden from the storefront.",
+      });
+      setSelected([]);
+    } catch {
+      return false;
+    }
+  };
+
+  const duplicateProduct = async (product: Product) => {
+    try {
+      const colorIds = new Map(
+        product.colors.map((c) => [c.id, crypto.randomUUID()]),
+      );
+      const copy: Product = {
+        ...product,
+        id: crypto.randomUUID(),
+        colors: product.colors.map((c) => ({ ...c, id: colorIds.get(c.id)! })),
+        images: [],
+        name: `${product.name} (Copy)`,
+        slug: `${product.slug}-copy-${crypto.randomUUID().slice(0, 8)}`,
+        status: "draft",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        variants: product.variants.map((v) => ({
+          ...v,
+          id: crypto.randomUUID(),
+          colorId: colorIds.get(v.colorId)!,
+          stock: 0,
+          reserved: 0,
+          sku: `${v.sku}-CP-${crypto.randomUUID().slice(0, 8)}`,
+        })),
+      };
+      await setProducts((prev) => [copy, ...prev]);
+      toast({
+        title: "Product duplicated",
+        description: `${copy.name} created as a draft.`,
+      });
+    } catch {
+      return false;
+    }
   };
 
   return (
@@ -293,7 +330,10 @@ export default function ProductsPage() {
                   <TableRow>
                     <TableHead className="w-10">
                       <Checkbox
-                        checked={visible.length > 0 && visible.every((p) => selected.includes(p.id))}
+                        checked={
+                          visible.length > 0 &&
+                          visible.every((p) => selected.includes(p.id))
+                        }
                         onCheckedChange={toggleAll}
                         aria-label="Select all visible products"
                       />
@@ -312,7 +352,9 @@ export default function ProductsPage() {
                     const stock = productTotalStock(product);
                     const min = minPrice(product);
                     const max = maxPrice(product);
-                    const parent = state.categories.find((c) => c.id === product.categoryId);
+                    const parent = state.categories.find(
+                      (c) => c.id === product.categoryId,
+                    );
                     const grandParent = parent?.parentId
                       ? state.categories.find((c) => c.id === parent.parentId)
                       : undefined;
@@ -328,7 +370,10 @@ export default function ProductsPage() {
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <ProductThumb
-                              src={product.images[0]?.url ?? "/products/scrubs-teal.jpg"}
+                              src={
+                                product.images[0]?.url ??
+                                "/products/scrubs-teal.jpg"
+                              }
                               alt={product.name}
                             />
                             <div className="min-w-0">
@@ -339,9 +384,14 @@ export default function ProductsPage() {
                                 {product.name}
                               </Link>
                               <p className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-ink-muted">
-                                <span className="font-mono">{product.slug}</span>
+                                <span className="font-mono">
+                                  {product.slug}
+                                </span>
                                 {product.engraveable && (
-                                  <Badge variant="purple" className="py-0 text-[9px]">
+                                  <Badge
+                                    variant="purple"
+                                    className="py-0 text-[9px]"
+                                  >
                                     Engravable
                                   </Badge>
                                 )}
@@ -350,22 +400,33 @@ export default function ProductsPage() {
                           </div>
                         </TableCell>
                         <TableCell className="font-mono text-[12px]">
-                          {product.variants[0]?.sku.split("-").slice(0, 2).join("-") || "—"}
-                          <span className="ml-1 text-ink-muted">({product.variants.length})</span>
+                          {product.variants[0]?.sku
+                            .split("-")
+                            .slice(0, 2)
+                            .join("-") || "—"}
+                          <span className="ml-1 text-ink-muted">
+                            ({product.variants.length})
+                          </span>
                         </TableCell>
                         <TableCell className="max-w-[190px] truncate">
                           {grandParent ? `${grandParent.name} / ` : ""}
                           {parent?.name ?? "—"}
                         </TableCell>
                         <TableCell className="text-right font-medium text-ink tabular">
-                          {min === max ? formatPKR(min) : `${formatPKR(min)} – ${formatPKR(max)}`}
+                          {min === max
+                            ? formatPKR(min)
+                            : `${formatPKR(min)} – ${formatPKR(max)}`}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <span className="text-[13px] font-medium text-ink tabular">{stock}</span>
+                            <span className="text-[13px] font-medium text-ink tabular">
+                              {stock}
+                            </span>
                             <StockBadge
                               stock={stock}
-                              reorderLevel={product.variants[0]?.reorderLevel ?? 10}
+                              reorderLevel={
+                                product.variants[0]?.reorderLevel ?? 10
+                              }
                             />
                           </div>
                         </TableCell>
@@ -375,7 +436,11 @@ export default function ProductsPage() {
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon-sm" aria-label="Product actions">
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label="Product actions"
+                              >
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -393,20 +458,29 @@ export default function ProductsPage() {
                                   Edit product
                                 </Link>
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => duplicateProduct(product)}>
+                              <DropdownMenuItem
+                                onClick={() => duplicateProduct(product)}
+                              >
                                 <Copy className="h-3.5 w-3.5" />
                                 Duplicate
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               {product.status !== "archived" ? (
                                 <DropdownMenuItem
-                                  onClick={() => {
-                                    setProductStatus(product.id, "archived");
-                                    toast({
-                                      title: "Product archived",
-                                      description: `${product.name} was archived.`,
-                                      variant: "info",
-                                    });
+                                  onClick={async () => {
+                                    try {
+                                      await setProductStatus(
+                                        product.id,
+                                        "archived",
+                                      );
+                                      toast({
+                                        title: "Product archived",
+                                        description: `${product.name} was archived.`,
+                                        variant: "info",
+                                      });
+                                    } catch {
+                                      return false;
+                                    }
                                   }}
                                 >
                                   <Archive className="h-3.5 w-3.5" />
@@ -414,12 +488,19 @@ export default function ProductsPage() {
                                 </DropdownMenuItem>
                               ) : (
                                 <DropdownMenuItem
-                                  onClick={() => {
-                                    setProductStatus(product.id, "active");
-                                    toast({
-                                      title: "Product restored",
-                                      description: `${product.name} is live again.`,
-                                    });
+                                  onClick={async () => {
+                                    try {
+                                      await setProductStatus(
+                                        product.id,
+                                        "active",
+                                      );
+                                      toast({
+                                        title: "Product restored",
+                                        description: `${product.name} is live again.`,
+                                      });
+                                    } catch {
+                                      return false;
+                                    }
                                   }}
                                 >
                                   <Package className="h-3.5 w-3.5" />
@@ -468,14 +549,18 @@ export default function ProductsPage() {
         }
         confirmLabel="Delete product"
         destructive
-        onConfirm={() => {
-          if (!deleteTarget) return;
-          deleteProduct(deleteTarget.id);
-          toast({
-            title: "Product deleted",
-            description: `${deleteTarget.name} was removed.`,
-            variant: "error",
-          });
+        onConfirm={async () => {
+          try {
+            if (!deleteTarget) return;
+            await deleteProduct(deleteTarget.id);
+            toast({
+              title: "Product deleted",
+              description: `${deleteTarget.name} was removed.`,
+              variant: "error",
+            });
+          } catch {
+            return false;
+          }
         }}
       />
     </div>
@@ -483,9 +568,13 @@ export default function ProductsPage() {
 }
 
 function minPrice(product: Product) {
-  return product.variants.length ? Math.min(...product.variants.map((v) => v.price)) : 0;
+  return product.variants.length
+    ? Math.min(...product.variants.map((v) => v.price))
+    : 0;
 }
 
 function maxPrice(product: Product) {
-  return product.variants.length ? Math.max(...product.variants.map((v) => v.price)) : 0;
+  return product.variants.length
+    ? Math.max(...product.variants.map((v) => v.price))
+    : 0;
 }

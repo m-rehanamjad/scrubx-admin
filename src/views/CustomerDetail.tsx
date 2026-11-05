@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -32,7 +32,9 @@ import { useToast } from "../components/ui/toast";
 import { useStore } from "../data/store";
 import { formatDate, formatDateTime, formatPKR } from "../lib/format";
 
-export default function CustomerDetailPage({ id: propId }: { id?: string } = {}) {
+export default function CustomerDetailPage({
+  id: propId,
+}: { id?: string } = {}) {
   const routeParams = useParams();
   const id = propId ?? (routeParams?.id as string | undefined);
   const { state, addCustomerNote } = useStore();
@@ -74,7 +76,10 @@ export default function CustomerDetailPage({ id: propId }: { id?: string } = {})
     <div className="space-y-5">
       <PageHeader
         eyebrow={
-          <Link href="/customers" className="inline-flex items-center gap-1 hover:text-brand-800">
+          <Link
+            href="/customers"
+            className="inline-flex items-center gap-1 hover:text-brand-800"
+          >
             <ArrowLeft className="h-3.5 w-3.5" />
             Customers
           </Link>
@@ -92,14 +97,28 @@ export default function CustomerDetailPage({ id: propId }: { id?: string } = {})
         <div className="space-y-5">
           <div className="grid gap-4 sm:grid-cols-3">
             {[
-              { label: "Total orders", value: String(orders.length), icon: ShoppingBag },
-              { label: "Total spending", value: formatPKR(spend), icon: Wallet },
-              { label: "Average order", value: formatPKR(averageOrder), icon: ShoppingBag },
+              {
+                label: "Total orders",
+                value: String(orders.length),
+                icon: ShoppingBag,
+              },
+              {
+                label: "Total spending",
+                value: formatPKR(spend),
+                icon: Wallet,
+              },
+              {
+                label: "Average order",
+                value: formatPKR(averageOrder),
+                icon: ShoppingBag,
+              },
             ].map((stat) => (
               <Card key={stat.label}>
                 <CardContent className="flex items-start justify-between p-4">
                   <div>
-                    <p className="text-[12px] font-medium text-ink-muted">{stat.label}</p>
+                    <p className="text-[12px] font-medium text-ink-muted">
+                      {stat.label}
+                    </p>
                     <p className="mt-1.5 text-[19px] font-semibold leading-none text-ink tabular">
                       {stat.value}
                     </p>
@@ -114,9 +133,12 @@ export default function CustomerDetailPage({ id: propId }: { id?: string } = {})
 
           <Card>
             <CardHeader>
-              <h2 className="text-[15px] font-semibold text-ink">Order history</h2>
+              <h2 className="text-[15px] font-semibold text-ink">
+                Order history
+              </h2>
               <p className="text-[12.5px] text-ink-muted">
-                {orders.length} order{orders.length === 1 ? "" : "s"} placed by this customer.
+                {orders.length} order{orders.length === 1 ? "" : "s"} placed by
+                this customer.
               </p>
             </CardHeader>
             <CardContent className="p-0">
@@ -159,7 +181,9 @@ export default function CustomerDetailPage({ id: propId }: { id?: string } = {})
                         <TableCell className="text-right font-medium text-ink tabular">
                           {formatPKR(order.total)}
                         </TableCell>
-                        <TableCell className="capitalize">{order.paymentMethod}</TableCell>
+                        <TableCell className="capitalize">
+                          {order.paymentMethod}
+                        </TableCell>
                         <TableCell>
                           <OrderStatusBadge status={order.status} />
                         </TableCell>
@@ -175,18 +199,26 @@ export default function CustomerDetailPage({ id: propId }: { id?: string } = {})
             <CardHeader>
               <h2 className="text-[15px] font-semibold text-ink">Notes</h2>
               <p className="text-[12.5px] text-ink-muted">
-                Internal notes about preferences, sizing or delivery instructions.
+                Internal notes about preferences, sizing or delivery
+                instructions.
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
               {customer.notes.length === 0 ? (
-                <p className="text-[13px] text-ink-muted">No notes saved for this customer.</p>
+                <p className="text-[13px] text-ink-muted">
+                  No notes saved for this customer.
+                </p>
               ) : (
                 <div className="space-y-2">
                   {customer.notes.map((item) => (
-                    <div key={item.id} className="rounded-md border border-line bg-surface-muted/60 p-3">
+                    <div
+                      key={item.id}
+                      className="rounded-md border border-line bg-surface-muted/60 p-3"
+                    >
                       <p className="text-[13px] text-ink">{item.text}</p>
-                      <p className="mt-1 text-[11.5px] text-ink-muted">{formatDateTime(item.at)}</p>
+                      <p className="mt-1 text-[11.5px] text-ink-muted">
+                        {formatDateTime(item.at)}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -202,10 +234,14 @@ export default function CustomerDetailPage({ id: propId }: { id?: string } = {})
                 <Button
                   className="self-start"
                   disabled={!note.trim()}
-                  onClick={() => {
-                    addCustomerNote(customer.id, note.trim());
-                    setNote("");
-                    toast({ title: "Note saved" });
+                  onClick={async () => {
+                    try {
+                      await addCustomerNote(customer.id, note.trim());
+                      setNote("");
+                      toast({ title: "Note saved" });
+                    } catch {
+                      return false;
+                    }
                   }}
                 >
                   <MessageSquarePlus className="h-4 w-4" />
@@ -222,8 +258,12 @@ export default function CustomerDetailPage({ id: propId }: { id?: string } = {})
               <div className="flex items-center gap-3">
                 <Avatar name={customer.name} size="lg" />
                 <div className="min-w-0">
-                  <p className="text-[15px] font-semibold text-ink">{customer.name}</p>
-                  <p className="text-[12px] text-ink-muted">{customer.city}, Pakistan</p>
+                  <p className="text-[15px] font-semibold text-ink">
+                    {customer.name}
+                  </p>
+                  <p className="text-[12px] text-ink-muted">
+                    {customer.city}, Pakistan
+                  </p>
                 </div>
               </div>
               <div className="mt-4 space-y-2.5 border-t border-line pt-4">
@@ -251,7 +291,9 @@ export default function CustomerDetailPage({ id: propId }: { id?: string } = {})
             </CardHeader>
             <CardContent className="space-y-3">
               {customer.addresses.length === 0 ? (
-                <p className="text-[13px] text-ink-muted">No saved addresses.</p>
+                <p className="text-[13px] text-ink-muted">
+                  No saved addresses.
+                </p>
               ) : (
                 customer.addresses.map((address) => (
                   <div
@@ -279,7 +321,9 @@ export default function CustomerDetailPage({ id: propId }: { id?: string } = {})
                       <br />
                       {address.country}
                     </p>
-                    <p className="mt-1.5 text-[11.5px] text-ink-muted">{address.phone}</p>
+                    <p className="mt-1.5 text-[11.5px] text-ink-muted">
+                      {address.phone}
+                    </p>
                   </div>
                 ))
               )}

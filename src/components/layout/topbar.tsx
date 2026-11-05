@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -28,22 +28,44 @@ import {
 } from "../ui/dropdown-menu";
 import { useStore } from "../../data/store";
 import { formatPKR, relativeTime } from "../../lib/format";
+import { authClient } from "@/lib/auth-client";
 import { cn } from "../../lib/utils";
 
 const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   "/": { title: "Dashboard", subtitle: "Store performance at a glance" },
   "/products": { title: "Products", subtitle: "Manage your catalogue" },
-  "/products/new": { title: "New Product", subtitle: "Add an item to the catalogue" },
-  "/categories": { title: "Categories", subtitle: "Organise your catalogue tree" },
+  "/products/new": {
+    title: "New Product",
+    subtitle: "Add an item to the catalogue",
+  },
+  "/categories": {
+    title: "Categories",
+    subtitle: "Organise your catalogue tree",
+  },
   "/inventory": { title: "Inventory", subtitle: "Stock levels and movements" },
   "/orders": { title: "Orders", subtitle: "Track and fulfil orders" },
-  "/payments": { title: "Payment Verification", subtitle: "Review submitted payments" },
-  "/payment-methods": { title: "Payment Methods", subtitle: "Configure checkout methods" },
-  "/engraving": { title: "Engraving Options", subtitle: "Name and logo engraving services" },
-  "/customers": { title: "Customers", subtitle: "Registered and guest customers" },
+  "/payments": {
+    title: "Payment Verification",
+    subtitle: "Review submitted payments",
+  },
+  "/payment-methods": {
+    title: "Payment Methods",
+    subtitle: "Configure checkout methods",
+  },
+  "/engraving": {
+    title: "Engraving Options",
+    subtitle: "Name and logo engraving services",
+  },
+  "/customers": {
+    title: "Customers",
+    subtitle: "Registered and guest customers",
+  },
   "/coupons": { title: "Coupons", subtitle: "Discount codes and limits" },
   "/shipping": { title: "Shipping", subtitle: "Delivery methods and charges" },
-  "/settings": { title: "Store Settings", subtitle: "General store configuration" },
+  "/settings": {
+    title: "Store Settings",
+    subtitle: "General store configuration",
+  },
 };
 
 function resolveMeta(pathname: string) {
@@ -60,6 +82,7 @@ function resolveMeta(pathname: string) {
 }
 
 export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
+  const { data: session } = authClient.useSession();
   const pathname = usePathname() || "/";
   const router = useRouter();
   const { state } = useStore();
@@ -81,19 +104,34 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
         .filter((p) => p.name.toLowerCase().includes(q) || p.slug.includes(q))
         .slice(0, 4),
       orders: state.orders
-        .filter((o) => o.orderNumber.toLowerCase().includes(q) || o.customerName.toLowerCase().includes(q))
+        .filter(
+          (o) =>
+            o.orderNumber.toLowerCase().includes(q) ||
+            o.customerName.toLowerCase().includes(q),
+        )
         .slice(0, 4),
       customers: state.customers
-        .filter((c) => c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q))
+        .filter(
+          (c) =>
+            c.name.toLowerCase().includes(q) ||
+            c.email.toLowerCase().includes(q),
+        )
         .slice(0, 3),
     };
   }, [query, state.products, state.orders, state.customers]);
 
   const hasResults =
-    results.products.length + results.orders.length + results.customers.length > 0;
+    results.products.length + results.orders.length + results.customers.length >
+    0;
 
   const notifications = useMemo(() => {
-    const items: { id: string; title: string; body: string; at: string; to: string }[] = [];
+    const items: {
+      id: string;
+      title: string;
+      body: string;
+      at: string;
+      to: string;
+    }[] = [];
     state.paymentSubmissions
       .filter((s) => s.status === "submitted")
       .slice(0, 3)
@@ -107,7 +145,10 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
         }),
       );
     state.orders
-      .filter((o) => o.status === "awaiting_payment" || o.status === "payment_submitted")
+      .filter(
+        (o) =>
+          o.status === "awaiting_payment" || o.status === "payment_submitted",
+      )
       .slice(0, 3)
       .forEach((o) =>
         items.push({
@@ -134,9 +175,13 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
       </Button>
 
       <div className="min-w-0 flex-1">
-        <h1 className="truncate text-[15px] font-semibold text-ink">{meta.title}</h1>
+        <h1 className="truncate text-[15px] font-semibold text-ink">
+          {meta.title}
+        </h1>
         {meta.subtitle && (
-          <p className="hidden truncate text-[12px] text-ink-muted sm:block">{meta.subtitle}</p>
+          <p className="hidden truncate text-[12px] text-ink-muted sm:block">
+            {meta.subtitle}
+          </p>
         )}
       </div>
 
@@ -182,8 +227,12 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
                           className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-surface-muted"
                         >
                           <Package className="h-4 w-4 text-ink-muted" />
-                          <span className="min-w-0 flex-1 truncate text-[13px] text-ink">{p.name}</span>
-                          <span className="text-[11px] text-ink-muted">{p.variants.length} variants</span>
+                          <span className="min-w-0 flex-1 truncate text-[13px] text-ink">
+                            {p.name}
+                          </span>
+                          <span className="text-[11px] text-ink-muted">
+                            {p.variants.length} variants
+                          </span>
                         </button>
                       ))}
                     </>
@@ -203,7 +252,9 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
                           <span className="min-w-0 flex-1 truncate text-[13px] text-ink">
                             {o.orderNumber} · {o.customerName}
                           </span>
-                          <span className="text-[11px] text-ink-muted">{formatPKR(o.total)}</span>
+                          <span className="text-[11px] text-ink-muted">
+                            {formatPKR(o.total)}
+                          </span>
                         </button>
                       ))}
                     </>
@@ -220,8 +271,12 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
                           className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-surface-muted"
                         >
                           <Users className="h-4 w-4 text-ink-muted" />
-                          <span className="min-w-0 flex-1 truncate text-[13px] text-ink">{c.name}</span>
-                          <span className="text-[11px] text-ink-muted">{c.city}</span>
+                          <span className="min-w-0 flex-1 truncate text-[13px] text-ink">
+                            {c.name}
+                          </span>
+                          <span className="text-[11px] text-ink-muted">
+                            {c.city}
+                          </span>
                         </button>
                       ))}
                     </>
@@ -235,7 +290,12 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="icon" className="relative" aria-label="Notifications">
+          <Button
+            variant="outline"
+            size="icon"
+            className="relative"
+            aria-label="Notifications"
+          >
             <Bell className="h-4 w-4" />
             {notifications.length > 0 && (
               <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" />
@@ -254,8 +314,15 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
               </p>
             ) : (
               notifications.map((n) => (
-                <DropdownMenuItem key={n.id} asChild className="items-start p-0">
-                  <Link href={n.to} className="flex w-full items-start gap-2.5 px-3 py-2.5">
+                <DropdownMenuItem
+                  key={n.id}
+                  asChild
+                  className="items-start p-0"
+                >
+                  <Link
+                    href={n.to}
+                    className="flex w-full items-start gap-2.5 px-3 py-2.5"
+                  >
                     <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-50 text-amber-600">
                       {n.to === "/payments" ? (
                         <CreditCard className="h-3.5 w-3.5" />
@@ -264,10 +331,16 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
                       )}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px] font-medium text-ink">{n.title}</span>
-                      <span className="block truncate text-[12px] text-ink-muted">{n.body}</span>
+                      <span className="block truncate text-[13px] font-medium text-ink">
+                        {n.title}
+                      </span>
+                      <span className="block truncate text-[12px] text-ink-muted">
+                        {n.body}
+                      </span>
                     </span>
-                    <span className="shrink-0 text-[11px] text-ink-muted">{relativeTime(n.at)}</span>
+                    <span className="shrink-0 text-[11px] text-ink-muted">
+                      {relativeTime(n.at)}
+                    </span>
                   </Link>
                 </DropdownMenuItem>
               ))
@@ -279,18 +352,24 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="flex items-center gap-2 rounded-md p-1 pr-1.5 transition-colors hover:bg-surface-muted">
-            <Avatar name="Ayesha Rehman" size="md" />
+            <Avatar name={session?.user.name || "Admin"} size="md" />
             <span className="hidden text-left lg:block">
-              <span className="block text-[13px] font-semibold leading-tight text-ink">Ayesha Rehman</span>
-              <span className="block text-[11px] leading-tight text-ink-muted">Store Administrator</span>
+              <span className="block text-[13px] font-semibold leading-tight text-ink">
+                {session?.user.name || "Admin"}
+              </span>
+              <span className="block text-[11px] leading-tight text-ink-muted">
+                Store Administrator
+              </span>
             </span>
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuLabel>Signed in as</DropdownMenuLabel>
           <div className="px-2.5 pb-2">
-            <p className="text-[13px] font-medium text-ink">Ayesha Rehman</p>
-            <p className="text-[12px] text-ink-muted">admin@scrubx.pk</p>
+            <p className="text-[13px] font-medium text-ink">
+              {session?.user.name || "Admin"}
+            </p>
+            <p className="text-[12px] text-ink-muted">{session?.user.email}</p>
           </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
@@ -300,9 +379,14 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
             <Link href="/orders">Order queue</Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={async () => {
+              await authClient.signOut();
+              window.location.assign("/login");
+            }}
+          >
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-            Session active · Prototype
+            Sign out
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
