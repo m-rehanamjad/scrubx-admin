@@ -110,3 +110,5 @@
 .recharts-cartesian-axis-tick-value {
   font-family: var(--font-sans);
 }
+
+:root { --font-inter: "Inter Variable", sans-serif; --font-display: "Plus Jakarta Sans Variable", sans-serif; --font-mono: "JetBrains Mono Variable", monospace; }

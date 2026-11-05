@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -26,7 +26,6 @@ import { SearchInput } from "../components/shared/search-input";
 import { EmptyState } from "../components/shared/empty-state";
 import { Pagination } from "../components/shared/pagination";
 import { Avatar } from "../components/shared/thumb";
-import { useSimulatedLoading } from "../components/shared/use-simulated-loading";
 import { TableSkeleton } from "../components/ui/skeleton";
 import { useStore } from "../data/store";
 import { formatDate, formatPKR } from "../lib/format";
@@ -35,7 +34,7 @@ type SortKey = "newest" | "spend-desc" | "orders-desc" | "name";
 
 export default function CustomersPage() {
   const { state } = useStore();
-  const loading = useSimulatedLoading(300);
+  const { loading } = useStore();
   const [query, setQuery] = useState("");
   const [type, setType] = useState<"all" | "registered" | "guest">("all");
   const [sort, setSort] = useState<SortKey>("newest");
@@ -87,9 +86,14 @@ export default function CustomersPage() {
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, pageCount);
-  const visible = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const visible = filtered.slice(
+    (safePage - 1) * pageSize,
+    safePage * pageSize,
+  );
 
-  const registeredCount = state.customers.filter((c) => c.type === "registered").length;
+  const registeredCount = state.customers.filter(
+    (c) => c.type === "registered",
+  ).length;
   const guestCount = state.customers.length - registeredCount;
   const lifetimeValue = state.customers.reduce(
     (sum, customer) => sum + (stats.get(customer.id)?.spend ?? 0),
@@ -106,14 +110,24 @@ export default function CustomersPage() {
 
       <div className="grid gap-4 sm:grid-cols-3">
         {[
-          { label: "Registered customers", value: registeredCount, icon: Users },
+          {
+            label: "Registered customers",
+            value: registeredCount,
+            icon: Users,
+          },
           { label: "Guest checkouts", value: guestCount, icon: UserRound },
-          { label: "Lifetime value", value: formatPKR(lifetimeValue), icon: Users },
+          {
+            label: "Lifetime value",
+            value: formatPKR(lifetimeValue),
+            icon: Users,
+          },
         ].map((stat) => (
           <Card key={stat.label}>
             <CardContent className="flex items-start justify-between p-4">
               <div>
-                <p className="text-[12px] font-medium text-ink-muted">{stat.label}</p>
+                <p className="text-[12px] font-medium text-ink-muted">
+                  {stat.label}
+                </p>
                 <p className="mt-1.5 text-[20px] font-semibold leading-none text-ink tabular">
                   {stat.value}
                 </p>
@@ -155,7 +169,10 @@ export default function CustomersPage() {
                   <SelectItem value="guest">Guest</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={sort} onValueChange={(value) => setSort(value as SortKey)}>
+              <Select
+                value={sort}
+                onValueChange={(value) => setSort(value as SortKey)}
+              >
                 <SelectTrigger className="w-[180px]">
                   <SelectValue />
                 </SelectTrigger>
@@ -193,7 +210,10 @@ export default function CustomersPage() {
                 </TableHeader>
                 <TableBody>
                   {visible.map((customer) => {
-                    const customerStats = stats.get(customer.id) ?? { orders: 0, spend: 0 };
+                    const customerStats = stats.get(customer.id) ?? {
+                      orders: 0,
+                      spend: 0,
+                    };
                     return (
                       <TableRow key={customer.id}>
                         <TableCell>
@@ -207,20 +227,32 @@ export default function CustomersPage() {
                                 {customer.name}
                               </Link>
                               <Badge
-                                variant={customer.type === "registered" ? "brand" : "neutral"}
+                                variant={
+                                  customer.type === "registered"
+                                    ? "brand"
+                                    : "neutral"
+                                }
                                 className="mt-0.5"
                               >
-                                {customer.type === "registered" ? "Registered" : "Guest"}
+                                {customer.type === "registered"
+                                  ? "Registered"
+                                  : "Guest"}
                               </Badge>
                             </div>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <p className="truncate text-[12.5px] text-ink-soft">{customer.email}</p>
-                          <p className="text-[11.5px] text-ink-muted">{customer.phone}</p>
+                          <p className="truncate text-[12.5px] text-ink-soft">
+                            {customer.email}
+                          </p>
+                          <p className="text-[11.5px] text-ink-muted">
+                            {customer.phone}
+                          </p>
                         </TableCell>
                         <TableCell>{customer.city}</TableCell>
-                        <TableCell className="text-right tabular">{customerStats.orders}</TableCell>
+                        <TableCell className="text-right tabular">
+                          {customerStats.orders}
+                        </TableCell>
                         <TableCell className="text-right font-medium text-ink tabular">
                           {formatPKR(customerStats.spend)}
                         </TableCell>

@@ -7,6 +7,7 @@ export interface ProductColor {
 }
 
 export interface ProductImage {
+  imagekitFileId?: string;
   id: ID;
   url: string;
   alt: string;
@@ -35,7 +36,7 @@ export interface ProductVariant {
 
 export type ProductStatus = "draft" | "active" | "archived";
 
-export type Gender = "unisex" | "men" | "women" | "kids";
+export type Gender = "unisex" | "men" | "women";
 
 export interface Product {
   id: ID;
@@ -79,20 +80,10 @@ export type OrderStatus =
   | "refunded";
 
 export type PaymentStatus =
-  | "pending"
-  | "submitted"
-  | "approved"
-  | "rejected"
-  | "refunded"
-  | "failed";
+  "pending" | "submitted" | "approved" | "rejected" | "refunded" | "failed";
 
 export type PaymentMethodId =
-  | "jazzcash"
-  | "easypaisa"
-  | "sadapay"
-  | "nayapay"
-  | "bank"
-  | "cod";
+  "jazzcash" | "easypaisa" | "sadapay" | "nayapay" | "bank" | "cod";
 
 export interface EngravingDetail {
   optionId: ID;
@@ -250,11 +241,7 @@ export interface ShippingMethod {
 }
 
 export type InventoryMovementType =
-  | "restock"
-  | "sale"
-  | "cancellation"
-  | "return"
-  | "adjustment";
+  "restock" | "sale" | "cancellation" | "return" | "adjustment";
 
 export interface InventoryMovement {
   id: ID;

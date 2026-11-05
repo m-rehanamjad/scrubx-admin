@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useMemo, useState } from "react";
 import {
@@ -41,7 +41,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../components/ui/tabs";
 import { PageHeader } from "../components/shared/page-header";
 import { SearchInput } from "../components/shared/search-input";
 import { EmptyState } from "../components/shared/empty-state";
@@ -51,11 +56,21 @@ import { useToast } from "../components/ui/toast";
 import { useStore } from "../data/store";
 import { formatDateTime, formatPKR } from "../lib/format";
 import { cn } from "../lib/utils";
-import type { InventoryMovementType, Product, ProductVariant } from "../lib/types";
+import type {
+  InventoryMovementType,
+  Product,
+  ProductVariant,
+} from "../lib/types";
 
 type StockFilter = "all" | "low" | "out" | "healthy";
 
-const MOVEMENT_META: Record<InventoryMovementType, { label: string; variant: "success" | "danger" | "info" | "warning" | "neutral" }> = {
+const MOVEMENT_META: Record<
+  InventoryMovementType,
+  {
+    label: string;
+    variant: "success" | "danger" | "info" | "warning" | "neutral";
+  }
+> = {
   restock: { label: "Restock", variant: "success" },
   sale: { label: "Sale", variant: "info" },
   cancellation: { label: "Cancellation", variant: "warning" },
@@ -70,7 +85,10 @@ export default function InventoryPage() {
   const [filter, setFilter] = useState<StockFilter>("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(12);
-  const [adjustTarget, setAdjustTarget] = useState<{ product: Product; variant: ProductVariant } | null>(null);
+  const [adjustTarget, setAdjustTarget] = useState<{
+    product: Product;
+    variant: ProductVariant;
+  } | null>(null);
   const [adjustMode, setAdjustMode] = useState<"set" | "add" | "remove">("add");
   const [adjustQty, setAdjustQty] = useState(0);
   const [adjustReason, setAdjustReason] = useState("Restock from supplier");
@@ -85,7 +103,10 @@ export default function InventoryPage() {
 
   const totals = useMemo(() => {
     const units = rows.reduce((sum, r) => sum + r.variant.stock, 0);
-    const value = rows.reduce((sum, r) => sum + r.variant.stock * r.variant.price, 0);
+    const value = rows.reduce(
+      (sum, r) => sum + r.variant.stock * r.variant.price,
+      0,
+    );
     const low = rows.filter(
       (r) => r.variant.stock > 0 && r.variant.stock <= r.variant.reorderLevel,
     ).length;
@@ -105,7 +126,9 @@ export default function InventoryPage() {
         variant.size.toLowerCase().includes(q);
       const matchesFilter =
         filter === "all" ||
-        (filter === "low" && variant.stock > 0 && variant.stock <= variant.reorderLevel) ||
+        (filter === "low" &&
+          variant.stock > 0 &&
+          variant.stock <= variant.reorderLevel) ||
         (filter === "out" && variant.stock === 0) ||
         (filter === "healthy" && variant.stock > variant.reorderLevel);
       return matchesQuery && matchesFilter;
@@ -114,10 +137,16 @@ export default function InventoryPage() {
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, pageCount);
-  const visible = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const visible = filtered.slice(
+    (safePage - 1) * pageSize,
+    safePage * pageSize,
+  );
 
   const movements = useMemo(
-    () => [...state.inventoryMovements].sort((a, b) => +new Date(b.at) - +new Date(a.at)),
+    () =>
+      [...state.inventoryMovements].sort(
+        (a, b) => +new Date(b.at) - +new Date(a.at),
+      ),
     [state.inventoryMovements],
   );
 
@@ -130,39 +159,78 @@ export default function InventoryPage() {
     setAdjustMode(mode);
     setAdjustQty(mode === "add" ? 10 : 0);
     setAdjustReason(
-      mode === "add" ? "Restock from supplier" : mode === "remove" ? "Manual adjustment" : "Stock count correction",
+      mode === "add"
+        ? "Restock from supplier"
+        : mode === "remove"
+          ? "Manual adjustment"
+          : "Stock count correction",
     );
     setAdjustNote("");
   };
 
-  const applyAdjust = () => {
-    if (!adjustTarget) return;
-    const { product, variant } = adjustTarget;
-    const next =
-      adjustMode === "set"
-        ? adjustQty
-        : adjustMode === "add"
-          ? variant.stock + adjustQty
-          : variant.stock - adjustQty;
-    if (next < 0) {
-      toast({ title: "Stock cannot go below zero", variant: "error" });
-      return;
+  const applyAdjust = async () => {
+    try {
+      if (!adjustTarget) return;
+      const { product, variant } = adjustTarget;
+      const next =
+        adjustMode === "set"
+          ? adjustQty
+          : adjustMode === "add"
+            ? variant.stock + adjustQty
+            : variant.stock - adjustQty;
+      if (next < 0) {
+        toast({ title: "Stock cannot go below zero", variant: "error" });
+        return;
+      }
+      const type: InventoryMovementType =
+        adjustMode === "add"
+          ? "restock"
+          : adjustMode === "remove"
+            ? "adjustment"
+            : "adjustment";
+      await setVariantStock(
+        product.id,
+        variant.id,
+        next,
+        type,
+        adjustReason,
+        adjustNote || undefined,
+      );
+      toast({
+        title: "Inventory updated",
+        description: `${product.name} · ${variant.name} is now at ${next} units.`,
+      });
+      setAdjustTarget(null);
+    } catch {
+      return false;
     }
-    const type: InventoryMovementType =
-      adjustMode === "add" ? "restock" : adjustMode === "remove" ? "adjustment" : "adjustment";
-    setVariantStock(product.id, variant.id, next, type, adjustReason, adjustNote || undefined);
-    toast({
-      title: "Inventory updated",
-      description: `${product.name} · ${variant.name} is now at ${next} units.`,
-    });
-    setAdjustTarget(null);
   };
 
   const stats = [
-    { label: "Units in stock", value: String(totals.units), icon: Boxes, tone: "brand" },
-    { label: "Stock value", value: formatPKR(totals.value), icon: TrendingUp, tone: "navy" },
-    { label: "Low stock SKUs", value: String(totals.low), icon: TrendingDown, tone: "amber" },
-    { label: "Out of stock SKUs", value: String(totals.out), icon: PackageSearch, tone: "rose" },
+    {
+      label: "Units in stock",
+      value: String(totals.units),
+      icon: Boxes,
+      tone: "brand",
+    },
+    {
+      label: "Stock value",
+      value: formatPKR(totals.value),
+      icon: TrendingUp,
+      tone: "navy",
+    },
+    {
+      label: "Low stock SKUs",
+      value: String(totals.low),
+      icon: TrendingDown,
+      tone: "amber",
+    },
+    {
+      label: "Out of stock SKUs",
+      value: String(totals.out),
+      icon: PackageSearch,
+      tone: "rose",
+    },
   ];
 
   return (
@@ -183,7 +251,9 @@ export default function InventoryPage() {
           <Card key={stat.label}>
             <CardContent className="flex items-start justify-between p-4">
               <div>
-                <p className="text-[12px] font-medium text-ink-muted">{stat.label}</p>
+                <p className="text-[12px] font-medium text-ink-muted">
+                  {stat.label}
+                </p>
                 <p className="mt-1.5 text-[20px] font-semibold leading-none text-ink tabular">
                   {stat.value}
                 </p>
@@ -274,7 +344,10 @@ export default function InventoryPage() {
                     </TableHeader>
                     <TableBody>
                       {visible.map(({ product, variant }) => {
-                        const available = Math.max(0, variant.stock - variant.reserved);
+                        const available = Math.max(
+                          0,
+                          variant.stock - variant.reserved,
+                        );
                         return (
                           <TableRow key={variant.id}>
                             <TableCell className="max-w-[220px] truncate text-ink">
@@ -289,21 +362,32 @@ export default function InventoryPage() {
                                 {variant.colorName} / {variant.size}
                               </span>
                             </TableCell>
-                            <TableCell className="font-mono text-[12px]">{variant.sku}</TableCell>
+                            <TableCell className="font-mono text-[12px]">
+                              {variant.sku}
+                            </TableCell>
                             <TableCell className="text-right font-medium text-ink tabular">
                               {available}
                             </TableCell>
-                            <TableCell className="text-right tabular">{variant.reserved}</TableCell>
-                            <TableCell className="text-right tabular">{variant.reorderLevel}</TableCell>
+                            <TableCell className="text-right tabular">
+                              {variant.reserved}
+                            </TableCell>
+                            <TableCell className="text-right tabular">
+                              {variant.reorderLevel}
+                            </TableCell>
                             <TableCell>
-                              <StockBadge stock={variant.stock} reorderLevel={variant.reorderLevel} />
+                              <StockBadge
+                                stock={variant.stock}
+                                reorderLevel={variant.reorderLevel}
+                              />
                             </TableCell>
                             <TableCell>
                               <div className="flex justify-end gap-1.5">
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => openAdjust(product, variant, "add")}
+                                  onClick={() =>
+                                    openAdjust(product, variant, "add")
+                                  }
                                 >
                                   <ArrowDownToLine className="h-3.5 w-3.5" />
                                   Restock
@@ -311,7 +395,9 @@ export default function InventoryPage() {
                                 <Button
                                   variant="ghost"
                                   size="icon-sm"
-                                  onClick={() => openAdjust(product, variant, "set")}
+                                  onClick={() =>
+                                    openAdjust(product, variant, "set")
+                                  }
                                   aria-label="Adjust stock"
                                 >
                                   <PencilLine className="h-3.5 w-3.5" />
@@ -371,26 +457,40 @@ export default function InventoryPage() {
                             <Badge variant={meta.variant}>{meta.label}</Badge>
                           </TableCell>
                           <TableCell className="max-w-[220px] truncate">
-                            <span className="block truncate text-ink">{movement.productName}</span>
-                            <span className="text-[11.5px] text-ink-muted">{movement.variantName}</span>
+                            <span className="block truncate text-ink">
+                              {movement.productName}
+                            </span>
+                            <span className="text-[11.5px] text-ink-muted">
+                              {movement.variantName}
+                            </span>
                           </TableCell>
-                          <TableCell className="font-mono text-[12px]">{movement.sku}</TableCell>
+                          <TableCell className="font-mono text-[12px]">
+                            {movement.sku}
+                          </TableCell>
                           <TableCell
                             className={cn(
                               "text-right font-medium tabular",
-                              movement.quantity >= 0 ? "text-emerald-700" : "text-rose-600",
+                              movement.quantity >= 0
+                                ? "text-emerald-700"
+                                : "text-rose-600",
                             )}
                           >
                             {movement.quantity >= 0 ? "+" : ""}
                             {movement.quantity}
                           </TableCell>
                           <TableCell>
-                            <span className="block text-ink-soft">{movement.reason}</span>
+                            <span className="block text-ink-soft">
+                              {movement.reason}
+                            </span>
                             {movement.note && (
-                              <span className="block text-[11.5px] text-ink-muted">{movement.note}</span>
+                              <span className="block text-[11.5px] text-ink-muted">
+                                {movement.note}
+                              </span>
                             )}
                           </TableCell>
-                          <TableCell className="text-[12.5px]">{movement.by}</TableCell>
+                          <TableCell className="text-[12.5px]">
+                            {movement.by}
+                          </TableCell>
                         </TableRow>
                       );
                     })}
@@ -402,7 +502,10 @@ export default function InventoryPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={Boolean(adjustTarget)} onOpenChange={(open) => !open && setAdjustTarget(null)}>
+      <Dialog
+        open={Boolean(adjustTarget)}
+        onOpenChange={(open) => !open && setAdjustTarget(null)}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
@@ -484,12 +587,24 @@ export default function InventoryPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Restock from supplier">Restock from supplier</SelectItem>
-                  <SelectItem value="Manual adjustment">Manual adjustment</SelectItem>
-                  <SelectItem value="Stock count correction">Stock count correction</SelectItem>
-                  <SelectItem value="Damaged in storage">Damaged in storage</SelectItem>
-                  <SelectItem value="Returned to stock">Returned to stock</SelectItem>
-                  <SelectItem value="Order cancelled">Order cancelled</SelectItem>
+                  <SelectItem value="Restock from supplier">
+                    Restock from supplier
+                  </SelectItem>
+                  <SelectItem value="Manual adjustment">
+                    Manual adjustment
+                  </SelectItem>
+                  <SelectItem value="Stock count correction">
+                    Stock count correction
+                  </SelectItem>
+                  <SelectItem value="Damaged in storage">
+                    Damaged in storage
+                  </SelectItem>
+                  <SelectItem value="Returned to stock">
+                    Returned to stock
+                  </SelectItem>
+                  <SelectItem value="Order cancelled">
+                    Order cancelled
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useEffect, useState } from "react";
 import {
@@ -54,7 +54,9 @@ export default function EngravingPage() {
   const { toast } = useToast();
   const [editing, setEditing] = useState<EngravingOption | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<EngravingOption | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<EngravingOption | null>(
+    null,
+  );
 
   const options = state.engravingOptions;
 
@@ -93,8 +95,9 @@ export default function EngravingPage() {
       <div className="flex items-start gap-3 rounded-lg border border-line bg-surface p-4">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />
         <p className="text-[12.5px] leading-relaxed text-ink-soft">
-          Engraving is an add-on charged per unit. Orders that include engraving can only be paid
-          in advance — Cash on Delivery is removed from checkout for those orders.
+          Engraving is an add-on charged per unit. Orders that include engraving
+          can only be paid in advance — Cash on Delivery is removed from
+          checkout for those orders.
         </p>
       </div>
 
@@ -127,8 +130,12 @@ export default function EngravingPage() {
                     </span>
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-[14px] font-semibold text-ink">{option.name}</p>
-                        <Badge variant={option.type === "logo" ? "navy" : "brand"}>
+                        <p className="text-[14px] font-semibold text-ink">
+                          {option.name}
+                        </p>
+                        <Badge
+                          variant={option.type === "logo" ? "navy" : "brand"}
+                        >
                           {option.type === "logo" ? "Logo" : "Name"}
                         </Badge>
                       </div>
@@ -139,7 +146,11 @@ export default function EngravingPage() {
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon-sm" aria-label="Engraving actions">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Engraving actions"
+                      >
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -149,7 +160,10 @@ export default function EngravingPage() {
                         Edit option
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem destructive onClick={() => setDeleteTarget(option)}>
+                      <DropdownMenuItem
+                        destructive
+                        onClick={() => setDeleteTarget(option)}
+                      >
                         <Trash2 className="h-3.5 w-3.5" />
                         Delete
                       </DropdownMenuItem>
@@ -159,13 +173,17 @@ export default function EngravingPage() {
 
                 <div className="mt-4 grid grid-cols-2 gap-3 border-t border-line pt-4">
                   <div>
-                    <p className="text-[11.5px] text-ink-muted">Price per unit</p>
+                    <p className="text-[11.5px] text-ink-muted">
+                      Price per unit
+                    </p>
                     <p className="mt-0.5 text-[14px] font-semibold text-ink tabular">
                       {formatPKR(option.price)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-[11.5px] text-ink-muted">Max characters</p>
+                    <p className="text-[11.5px] text-ink-muted">
+                      Max characters
+                    </p>
                     <p className="mt-0.5 flex items-center gap-1 text-[14px] font-semibold text-ink tabular">
                       <Hash className="h-3.5 w-3.5 text-ink-muted" />
                       {option.maxCharacters ?? "—"}
@@ -179,12 +197,21 @@ export default function EngravingPage() {
                   </Badge>
                   <Switch
                     checked={option.active}
-                    onCheckedChange={(checked) => {
-                      saveEngravingOption({ ...option, active: checked });
-                      toast({
-                        title: checked ? "Option activated" : "Option deactivated",
-                        description: option.name,
-                      });
+                    onCheckedChange={async (checked) => {
+                      try {
+                        await saveEngravingOption({
+                          ...option,
+                          active: checked,
+                        });
+                        toast({
+                          title: checked
+                            ? "Option activated"
+                            : "Option deactivated",
+                          description: option.name,
+                        });
+                      } catch {
+                        return false;
+                      }
                     }}
                     aria-label={`Toggle ${option.name}`}
                   />
@@ -199,13 +226,19 @@ export default function EngravingPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         option={editing}
-        onSave={(option) => {
-          saveEngravingOption(option);
-          toast({
-            title: editing?.name ? "Engraving option updated" : "Engraving option created",
-            description: option.name,
-          });
-          setDialogOpen(false);
+        onSave={async (option) => {
+          try {
+            await saveEngravingOption(option);
+            toast({
+              title: editing?.name
+                ? "Engraving option updated"
+                : "Engraving option created",
+              description: option.name,
+            });
+            setDialogOpen(false);
+          } catch {
+            return false;
+          }
         }}
       />
 
@@ -220,10 +253,14 @@ export default function EngravingPage() {
         }
         confirmLabel="Delete option"
         destructive
-        onConfirm={() => {
-          if (!deleteTarget) return;
-          deleteEngravingOption(deleteTarget.id);
-          toast({ title: "Engraving option deleted", variant: "error" });
+        onConfirm={async () => {
+          try {
+            if (!deleteTarget) return;
+            await deleteEngravingOption(deleteTarget.id);
+            toast({ title: "Engraving option deleted", variant: "error" });
+          } catch {
+            return false;
+          }
         }}
       />
     </div>
@@ -254,7 +291,9 @@ function EngravingDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{option?.name ? "Edit engraving option" : "New engraving option"}</DialogTitle>
+          <DialogTitle>
+            {option?.name ? "Edit engraving option" : "New engraving option"}
+          </DialogTitle>
           <DialogDescription>
             Pricing is charged per unit on top of the product price.
           </DialogDescription>
@@ -278,7 +317,8 @@ function EngravingDialog({
                   setDraft({
                     ...draft,
                     type: value as "name" | "logo",
-                    maxCharacters: value === "logo" ? null : draft.maxCharacters ?? 12,
+                    maxCharacters:
+                      value === "logo" ? null : (draft.maxCharacters ?? 12),
                   })
                 }
               >
@@ -298,7 +338,9 @@ function EngravingDialog({
                 type="number"
                 min={0}
                 value={draft.price}
-                onChange={(e) => setDraft({ ...draft, price: Number(e.target.value) })}
+                onChange={(e) =>
+                  setDraft({ ...draft, price: Number(e.target.value) })
+                }
               />
             </div>
           </div>
@@ -314,7 +356,8 @@ function EngravingDialog({
               onChange={(e) =>
                 setDraft({
                   ...draft,
-                  maxCharacters: e.target.value === "" ? null : Number(e.target.value),
+                  maxCharacters:
+                    e.target.value === "" ? null : Number(e.target.value),
                 })
               }
             />
@@ -325,18 +368,24 @@ function EngravingDialog({
               id="eng-desc"
               rows={3}
               value={draft.description}
-              onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+              onChange={(e) =>
+                setDraft({ ...draft, description: e.target.value })
+              }
               placeholder="Where the engraving is placed and how it is produced."
             />
           </div>
           <div className="flex items-center justify-between rounded-lg border border-line bg-surface-muted/60 p-3">
             <div>
               <p className="text-[13px] font-medium text-ink">Active</p>
-              <p className="text-[12px] text-ink-muted">Inactive options are hidden at checkout.</p>
+              <p className="text-[12px] text-ink-muted">
+                Inactive options are hidden at checkout.
+              </p>
             </div>
             <Switch
               checked={draft.active}
-              onCheckedChange={(checked) => setDraft({ ...draft, active: checked })}
+              onCheckedChange={(checked) =>
+                setDraft({ ...draft, active: checked })
+              }
             />
           </div>
         </DialogBody>

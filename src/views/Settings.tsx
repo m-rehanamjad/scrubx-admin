@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -8,7 +8,6 @@ import {
   Bell,
   Building2,
   Database,
-  RotateCcw,
   Save,
   Settings2,
   ShoppingBag,
@@ -26,12 +25,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../components/ui/tabs";
 import { PageHeader } from "../components/shared/page-header";
-import { ConfirmDialog } from "../components/shared/confirm-dialog";
 import { useToast } from "../components/ui/toast";
 import { useStore } from "../data/store";
-import { cn } from "../lib/utils";
 
 const settingsSchema = z.object({
   storeName: z.string().min(2, "Store name is required"),
@@ -49,9 +51,8 @@ const settingsSchema = z.object({
 type SettingsForm = z.infer<typeof settingsSchema>;
 
 export default function SettingsPage() {
-  const { state, updateSettings, resetDemoData } = useStore();
+  const { state, updateSettings } = useStore();
   const { toast } = useToast();
-  const [confirmReset, setConfirmReset] = useState(false);
 
   const form = useForm<SettingsForm>({
     resolver: zodResolver(settingsSchema),
@@ -88,12 +89,16 @@ export default function SettingsPage() {
     });
   }, [reset, state.settings]);
 
-  const onSubmit = (data: SettingsForm) => {
-    updateSettings(data);
-    toast({
-      title: "Settings saved",
-      description: "Store configuration has been updated.",
-    });
+  const onSubmit = async (data: SettingsForm) => {
+    try {
+      await updateSettings(data);
+      toast({
+        title: "Settings saved",
+        description: "Store configuration has been updated.",
+      });
+    } catch {
+      return false;
+    }
   };
 
   const toggleRow = (
@@ -114,9 +119,15 @@ export default function SettingsPage() {
       </div>
       <Switch
         checked={state.settings[key]}
-        onCheckedChange={(checked) => {
-          updateSettings({ [key]: checked });
-          toast({ title: checked ? `${title} enabled` : `${title} disabled` });
+        onCheckedChange={async (checked) => {
+          try {
+            await updateSettings({ [key]: checked });
+            toast({
+              title: checked ? `${title} enabled` : `${title} disabled`,
+            });
+          } catch {
+            return false;
+          }
         }}
         aria-label={title}
       />
@@ -132,7 +143,7 @@ export default function SettingsPage() {
         actions={
           <Badge variant="neutral">
             <Settings2 className="h-3 w-3" />
-            Prototype mode · saved locally
+            Connected · PostgreSQL
           </Badge>
         }
       />
@@ -161,7 +172,9 @@ export default function SettingsPage() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <Card>
               <CardHeader>
-                <h2 className="text-[15px] font-semibold text-ink">Store information</h2>
+                <h2 className="text-[15px] font-semibold text-ink">
+                  Store information
+                </h2>
                 <p className="text-[12.5px] text-ink-muted">
                   Shown on invoices, the storefront footer and customer emails.
                 </p>
@@ -170,12 +183,22 @@ export default function SettingsPage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <Label htmlFor="storeName">Store name</Label>
-                    <Input id="storeName" aria-invalid={Boolean(formState.errors.storeName)} {...register("storeName")} />
-                    <FieldError>{formState.errors.storeName?.message}</FieldError>
+                    <Input
+                      id="storeName"
+                      aria-invalid={Boolean(formState.errors.storeName)}
+                      {...register("storeName")}
+                    />
+                    <FieldError>
+                      {formState.errors.storeName?.message}
+                    </FieldError>
                   </div>
                   <div>
                     <Label htmlFor="tagline">Tagline</Label>
-                    <Input id="tagline" aria-invalid={Boolean(formState.errors.tagline)} {...register("tagline")} />
+                    <Input
+                      id="tagline"
+                      aria-invalid={Boolean(formState.errors.tagline)}
+                      {...register("tagline")}
+                    />
                     <FieldError>{formState.errors.tagline?.message}</FieldError>
                   </div>
                   <div>
@@ -186,7 +209,9 @@ export default function SettingsPage() {
                       aria-invalid={Boolean(formState.errors.supportEmail)}
                       {...register("supportEmail")}
                     />
-                    <FieldError>{formState.errors.supportEmail?.message}</FieldError>
+                    <FieldError>
+                      {formState.errors.supportEmail?.message}
+                    </FieldError>
                   </div>
                   <div>
                     <Label htmlFor="supportPhone">Support phone</Label>
@@ -195,7 +220,9 @@ export default function SettingsPage() {
                       aria-invalid={Boolean(formState.errors.supportPhone)}
                       {...register("supportPhone")}
                     />
-                    <FieldError>{formState.errors.supportPhone?.message}</FieldError>
+                    <FieldError>
+                      {formState.errors.supportPhone?.message}
+                    </FieldError>
                   </div>
                   <div className="sm:col-span-2">
                     <Label htmlFor="whatsapp">WhatsApp number</Label>
@@ -205,7 +232,9 @@ export default function SettingsPage() {
                       aria-invalid={Boolean(formState.errors.whatsapp)}
                       {...register("whatsapp")}
                     />
-                    <FieldError>{formState.errors.whatsapp?.message}</FieldError>
+                    <FieldError>
+                      {formState.errors.whatsapp?.message}
+                    </FieldError>
                   </div>
                   <div className="sm:col-span-2">
                     <Label htmlFor="address">Address</Label>
@@ -219,7 +248,11 @@ export default function SettingsPage() {
                   </div>
                   <div>
                     <Label htmlFor="city">City</Label>
-                    <Input id="city" aria-invalid={Boolean(formState.errors.city)} {...register("city")} />
+                    <Input
+                      id="city"
+                      aria-invalid={Boolean(formState.errors.city)}
+                      {...register("city")}
+                    />
                     <FieldError>{formState.errors.city?.message}</FieldError>
                   </div>
                   <div>
@@ -229,7 +262,9 @@ export default function SettingsPage() {
                       aria-invalid={Boolean(formState.errors.province)}
                       {...register("province")}
                     />
-                    <FieldError>{formState.errors.province?.message}</FieldError>
+                    <FieldError>
+                      {formState.errors.province?.message}
+                    </FieldError>
                   </div>
                   <div>
                     <Label htmlFor="postcode">Postcode</Label>
@@ -238,12 +273,17 @@ export default function SettingsPage() {
                       aria-invalid={Boolean(formState.errors.postcode)}
                       {...register("postcode")}
                     />
-                    <FieldError>{formState.errors.postcode?.message}</FieldError>
+                    <FieldError>
+                      {formState.errors.postcode?.message}
+                    </FieldError>
                   </div>
                   <div>
                     <Label>Currency</Label>
                     <div className="flex h-9 items-center rounded-md border border-line-strong bg-surface-muted px-3 text-[13px] text-ink-soft">
-                      PKR — Rs. <span className="ml-1 text-[11.5px] text-ink-muted">(fixed)</span>
+                      PKR — Rs.{" "}
+                      <span className="ml-1 text-[11.5px] text-ink-muted">
+                        (fixed)
+                      </span>
                     </div>
                     <p className="mt-1.5 text-xs text-ink-muted">
                       ScrubX trades exclusively in Pakistani Rupees.
@@ -268,9 +308,12 @@ export default function SettingsPage() {
         <TabsContent value="orders">
           <Card>
             <CardHeader>
-              <h2 className="text-[15px] font-semibold text-ink">Orders & payments</h2>
+              <h2 className="text-[15px] font-semibold text-ink">
+                Orders & payments
+              </h2>
               <p className="text-[12.5px] text-ink-muted">
-                Control how long customers have to pay and how orders are confirmed.
+                Control how long customers have to pay and how orders are
+                confirmed.
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -292,15 +335,23 @@ export default function SettingsPage() {
                   <p className="mt-1.5 text-xs text-ink-muted">
                     Unpaid orders are cancelled automatically after this window.
                   </p>
-                  <FieldError>{formState.errors.paymentDeadlineHours?.message}</FieldError>
+                  <FieldError>
+                    {formState.errors.paymentDeadlineHours?.message}
+                  </FieldError>
                 </div>
                 <div>
                   <Label>Default shipping method</Label>
                   <Select
                     value={state.settings.defaultShippingMethodId}
-                    onValueChange={(value) => {
-                      updateSettings({ defaultShippingMethodId: value });
-                      toast({ title: "Default shipping method updated" });
+                    onValueChange={async (value) => {
+                      try {
+                        await updateSettings({
+                          defaultShippingMethodId: value,
+                        });
+                        toast({ title: "Default shipping method updated" });
+                      } catch {
+                        return false;
+                      }
                     }}
                   >
                     <SelectTrigger>
@@ -339,7 +390,9 @@ export default function SettingsPage() {
         <TabsContent value="notifications">
           <Card>
             <CardHeader>
-              <h2 className="text-[15px] font-semibold text-ink">Notifications</h2>
+              <h2 className="text-[15px] font-semibold text-ink">
+                Notifications
+              </h2>
               <p className="text-[12.5px] text-ink-muted">
                 Choose how the team is told about new activity.
               </p>
@@ -372,10 +425,12 @@ export default function SettingsPage() {
         <TabsContent value="data">
           <Card>
             <CardHeader>
-              <h2 className="text-[15px] font-semibold text-ink">Prototype data</h2>
+              <h2 className="text-[15px] font-semibold text-ink">
+                Database records
+              </h2>
               <p className="text-[12.5px] text-ink-muted">
-                This panel is a front-end prototype. Every change is stored in your browser&apos;s
-                local storage — there is no backend, API or database.
+                Changes are saved through authenticated server APIs to Supabase
+                PostgreSQL.
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -390,39 +445,16 @@ export default function SettingsPage() {
                     className="rounded-lg border border-line bg-surface-muted/60 p-3.5"
                   >
                     <p className="text-[11.5px] text-ink-muted">{item.label}</p>
-                    <p className="mt-1 text-[20px] font-semibold text-ink tabular">{item.value}</p>
+                    <p className="mt-1 text-[20px] font-semibold text-ink tabular">
+                      {item.value}
+                    </p>
                   </div>
                 ))}
-              </div>
-
-              <div className={cn("rounded-lg border border-rose-200 bg-rose-50/70 p-4")}>
-                <p className="text-[13px] font-semibold text-rose-900">Reset demo data</p>
-                <p className="mt-1 text-[12.5px] text-rose-800">
-                  Restores the original catalogue, orders, customers and inventory. Any edits you
-                  have made in this session will be lost.
-                </p>
-                <Button variant="danger" size="sm" className="mt-3" onClick={() => setConfirmReset(true)}>
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  Reset everything
-                </Button>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
-
-      <ConfirmDialog
-        open={confirmReset}
-        onOpenChange={setConfirmReset}
-        title="Reset demo data?"
-        description="All local changes will be replaced with the original mock data."
-        confirmLabel="Reset data"
-        destructive
-        onConfirm={() => {
-          resetDemoData();
-          toast({ title: "Demo data restored", description: "The original mock data is back." });
-        }}
-      />
     </div>
   );
 }

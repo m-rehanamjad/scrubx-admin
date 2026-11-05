@@ -1,9 +1,23 @@
 import { Badge } from "../ui/badge";
 import { cn } from "../../lib/utils";
-import type { OrderStatus, PaymentStatus, ProductStatus } from "../../lib/types";
-import { ORDER_STATUS_LABEL } from "../../data/mock";
+import type {
+  OrderStatus,
+  PaymentStatus,
+  ProductStatus,
+} from "../../lib/types";
+import { ORDER_STATUS_LABEL } from "../../data/constants";
 
-const orderVariant: Record<OrderStatus, "neutral" | "brand" | "navy" | "success" | "warning" | "danger" | "info" | "purple"> = {
+const orderVariant: Record<
+  OrderStatus,
+  | "neutral"
+  | "brand"
+  | "navy"
+  | "success"
+  | "warning"
+  | "danger"
+  | "info"
+  | "purple"
+> = {
   awaiting_payment: "warning",
   payment_submitted: "info",
   pending_cod: "purple",
@@ -29,7 +43,17 @@ export function OrderStatusBadge({
   );
 }
 
-const paymentVariant: Record<PaymentStatus, "neutral" | "brand" | "navy" | "success" | "warning" | "danger" | "info" | "purple"> = {
+const paymentVariant: Record<
+  PaymentStatus,
+  | "neutral"
+  | "brand"
+  | "navy"
+  | "success"
+  | "warning"
+  | "danger"
+  | "info"
+  | "purple"
+> = {
   pending: "warning",
   submitted: "info",
   approved: "success",

@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -49,10 +49,15 @@ import { ProductStatusBadge } from "../components/shared/status-badges";
 import { ConfirmDialog } from "../components/shared/confirm-dialog";
 import { useToast } from "../components/ui/toast";
 import { useStore } from "../data/store";
-import { COLOR_LIBRARY } from "../data/mock";
+import { COLOR_LIBRARY } from "../data/constants";
 import { formatPKR } from "../lib/format";
 import { cn, slugify, uid } from "../lib/utils";
-import type { Product, ProductColor, ProductImage, ProductVariant } from "../lib/types";
+import type {
+  Product,
+  ProductColor,
+  ProductImage,
+  ProductVariant,
+} from "../lib/types";
 
 const APPAREL_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "3XL"];
 const SHOE_SIZES = ["36", "37", "38", "39", "40", "41", "42"];
@@ -63,11 +68,16 @@ const basicsSchema = z.object({
   slug: z
     .string()
     .min(2, "Slug is required")
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers and hyphens only"),
-  description: z.string().min(20, "Add a description of at least 20 characters"),
+    .regex(
+      /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+      "Use lowercase letters, numbers and hyphens only",
+    ),
+  description: z
+    .string()
+    .min(20, "Add a description of at least 20 characters"),
   categoryId: z.string().min(1, "Select a category"),
   brand: z.string().min(2, "Brand is required"),
-  gender: z.enum(["unisex", "men", "women", "kids"]),
+  gender: z.enum(["unisex", "men", "women"]),
   material: z.string().min(2, "Material is required"),
   status: z.enum(["draft", "active", "archived"]),
   engraveable: z.boolean(),
@@ -76,28 +86,13 @@ const basicsSchema = z.object({
 
 type BasicsForm = z.infer<typeof basicsSchema>;
 
-const IMAGE_LIBRARY = [
-  "/products/scrubs-teal.jpg",
-  "/products/scrubs-navy.jpg",
-  "/products/lab-coat.jpg",
-  "/products/stethoscope.jpg",
-  "/products/mask.jpg",
-  "/products/gloves.jpg",
-  "/products/shoes.jpg",
-  "/products/scrub-cap.jpg",
-  "/products/bp-monitor.jpg",
-  "/products/oximeter.jpg",
-  "/products/penlight.jpg",
-  "/products/badge.jpg",
-  "/products/compression-socks.jpg",
-  "/products/face-shield.jpg",
-  "/products/first-aid.jpg",
-  "/products/pocket-book.jpg",
-];
-
-const colorCode = (name: string) => name.split(" ")[0].slice(0, 3).toUpperCase();
+const colorCode = (name: string) =>
+  name.split(" ")[0].slice(0, 3).toUpperCase();
 const sizeCode = (size: string) =>
-  size.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3) || "OS";
+  size
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 3) || "OS";
 
 export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
   const routeParams = useParams();
@@ -117,18 +112,25 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
   const [sizes, setSizes] = useState<string[]>(
     existing ? [...new Set(existing.variants.map((v) => v.size))] : [],
   );
-  const [variants, setVariants] = useState<ProductVariant[]>(existing?.variants ?? []);
+  const [variants, setVariants] = useState<ProductVariant[]>(
+    existing?.variants ?? [],
+  );
   const [slugTouched, setSlugTouched] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
+  const [imageFileId, setImageFileId] = useState("");
   const [imageColor, setImageColor] = useState<string>("shared");
   const [manualOpen, setManualOpen] = useState(false);
-  const [deleteVariant, setDeleteVariant] = useState<ProductVariant | null>(null);
+  const [deleteVariant, setDeleteVariant] = useState<ProductVariant | null>(
+    null,
+  );
   const [variantError, setVariantError] = useState<string | null>(null);
   const [colorDraft, setColorDraft] = useState({ name: "", hex: "#0F766E" });
   const [editingColorId, setEditingColorId] = useState<string | null>(null);
 
   const slugPrefix = useMemo(() => {
-    const base = slugify(existing?.name ?? "scrubx-product").slice(0, 6).toUpperCase();
+    const base = slugify(existing?.name ?? "scrubx-product")
+      .slice(0, 6)
+      .toUpperCase();
     return `SCRX-${base.split("-")[0] ?? "ITM"}`;
   }, [existing?.name]);
 
@@ -185,7 +187,9 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
     }
   }, [nameValue, slugTouched, setValue]);
 
-  const leafCategories = state.categories.filter((c) => c.parentId || c.status === "active");
+  const leafCategories = state.categories.filter(
+    (c) => c.parentId || c.status === "active",
+  );
 
   const addColor = () => {
     const name = colorDraft.name.trim();
@@ -197,9 +201,15 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
       toast({ title: "That colour already exists", variant: "error" });
       return;
     }
-    setColors((prev) => [...prev, { id: uid("col"), name, hex: colorDraft.hex }]);
+    setColors((prev) => [
+      ...prev,
+      { id: uid("col"), name, hex: colorDraft.hex },
+    ]);
     setColorDraft({ name: "", hex: "#0F766E" });
-    toast({ title: "Colour added", description: `${name} is available for variants.` });
+    toast({
+      title: "Colour added",
+      description: `${name} is available for variants.`,
+    });
   };
 
   const updateColor = (colorId: string, patch: Partial<ProductColor>) => {
@@ -221,13 +231,21 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
 
   const removeColor = (colorId: string) => {
     setColors((prev) => prev.filter((c) => c.id !== colorId));
-    setImages((prev) => prev.map((i) => (i.colorId === colorId ? { ...i, colorId: null } : i)));
+    setImages((prev) =>
+      prev.map((i) => (i.colorId === colorId ? { ...i, colorId: null } : i)),
+    );
     setVariants((prev) => prev.filter((v) => v.colorId !== colorId));
-    toast({ title: "Colour removed", description: "Related variants were deleted.", variant: "info" });
+    toast({
+      title: "Colour removed",
+      description: "Related variants were deleted.",
+      variant: "info",
+    });
   };
 
   const toggleSize = (size: string) => {
-    setSizes((prev) => (prev.includes(size) ? prev.filter((s) => s !== size) : [...prev, size]));
+    setSizes((prev) =>
+      prev.includes(size) ? prev.filter((s) => s !== size) : [...prev, size],
+    );
   };
 
   const generateVariants = () => {
@@ -243,9 +261,15 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
       const next: ProductVariant[] = [];
       for (const color of colors) {
         for (const size of sizes) {
-          const existingVariant = prev.find((v) => v.colorId === color.id && v.size === size);
+          const existingVariant = prev.find(
+            (v) => v.colorId === color.id && v.size === size,
+          );
           if (existingVariant) {
-            next.push({ ...existingVariant, colorName: color.name, colorHex: color.hex });
+            next.push({
+              ...existingVariant,
+              colorName: color.name,
+              colorHex: color.hex,
+            });
           } else {
             next.push({
               id: uid("var"),
@@ -278,7 +302,9 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
   };
 
   const updateVariant = (variantId: string, patch: Partial<ProductVariant>) => {
-    setVariants((prev) => prev.map((v) => (v.id === variantId ? { ...v, ...patch } : v)));
+    setVariants((prev) =>
+      prev.map((v) => (v.id === variantId ? { ...v, ...patch } : v)),
+    );
   };
 
   const addManualVariant = (data: {
@@ -310,15 +336,25 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
     setVariants((prev) => [...prev, variant]);
     if (!sizes.includes(data.size)) setSizes((prev) => [...prev, data.size]);
     setManualOpen(false);
-    toast({ title: "Variant added", description: `${variant.name} added to the product.` });
+    toast({
+      title: "Variant added",
+      description: `${variant.name} added to the product.`,
+    });
   };
 
   const addImage = (url: string, colorId: string | null) => {
     const trimmed = url.trim();
-    if (!trimmed) return;
+    if (!trimmed || !imageFileId.trim()) {
+      toast({
+        title: "ImageKit URL and file ID are required",
+        variant: "error",
+      });
+      return;
+    }
     const image: ProductImage = {
       id: uid("img"),
       url: trimmed,
+      imagekitFileId: imageFileId.trim(),
       alt: `${values.name || "Product"} image`,
       colorId,
       isMain: images.length === 0,
@@ -328,6 +364,7 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
       return next.map((i, index) => (index === 0 ? { ...i, isMain: true } : i));
     });
     setImageUrl("");
+    setImageFileId("");
     toast({ title: "Image added" });
   };
 
@@ -349,7 +386,8 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
   const removeImage = (imageId: string) => {
     setImages((prev) => {
       const next = prev.filter((i) => i.id !== imageId);
-      if (next.length && !next.some((i) => i.isMain)) next[0] = { ...next[0], isMain: true };
+      if (next.length && !next.some((i) => i.isMain))
+        next[0] = { ...next[0], isMain: true };
       return next;
     });
   };
@@ -370,7 +408,7 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
     images,
     variants,
     createdAt: existing?.createdAt ?? new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    updatedAt: existing?.updatedAt ?? new Date().toISOString(),
   });
 
   const validateVariants = () => {
@@ -380,7 +418,9 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
     }
     const noPrice = variants.find((v) => !v.price || v.price <= 0);
     if (noPrice) {
-      setVariantError(`Variant “${noPrice.name}” needs a price greater than zero.`);
+      setVariantError(
+        `Variant “${noPrice.name}” needs a price greater than zero.`,
+      );
       return false;
     }
     const noSku = variants.find((v) => !v.sku.trim());
@@ -388,9 +428,13 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
       setVariantError(`Variant “${noSku.name}” needs a SKU.`);
       return false;
     }
-    const negativeStock = variants.find((v) => v.stock < 0 || v.reorderLevel < 0);
+    const negativeStock = variants.find(
+      (v) => v.stock < 0 || v.reorderLevel < 0,
+    );
     if (negativeStock) {
-      setVariantError(`Variant “${negativeStock.name}” has an invalid stock value.`);
+      setVariantError(
+        `Variant “${negativeStock.name}” has an invalid stock value.`,
+      );
       return false;
     }
     setVariantError(null);
@@ -398,25 +442,29 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
   };
 
   const onSubmit = async (status: Product["status"]) => {
-    const valid = await trigger();
-    if (!valid) {
+    try {
+      const valid = await trigger();
+      if (!valid) {
+        toast({
+          title: "Check the highlighted fields",
+          description: "Some required product information is missing.",
+          variant: "error",
+        });
+        return;
+      }
+      if (!validateVariants()) {
+        toast({ title: "Variants need attention", variant: "error" });
+        return;
+      }
+      await saveProduct(buildProduct(status));
       toast({
-        title: "Check the highlighted fields",
-        description: "Some required product information is missing.",
-        variant: "error",
+        title: status === "active" ? "Product published" : "Saved as draft",
+        description: `${values.name} has been ${status === "active" ? "published to the store" : "saved as a draft"}.`,
       });
-      return;
+      router.push("/products");
+    } catch {
+      return false;
     }
-    if (!validateVariants()) {
-      toast({ title: "Variants need attention", variant: "error" });
-      return;
-    }
-    saveProduct(buildProduct(status));
-    toast({
-      title: status === "active" ? "Product published" : "Saved as draft",
-      description: `${values.name} has been ${status === "active" ? "published to the store" : "saved as a draft"}.`,
-    });
-    router.push("/products");
   };
 
   const priceRange = useMemo(() => {
@@ -441,7 +489,7 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
     >
       <PageHeader
         eyebrow={isEdit ? "Edit product" : "New product"}
-        title={isEdit ? existing?.name ?? "Edit product" : "Create a product"}
+        title={isEdit ? (existing?.name ?? "Edit product") : "Create a product"}
         description="Build the listing, define colours and images, then generate sellable variants."
         actions={
           <>
@@ -451,7 +499,11 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                 Back to products
               </Link>
             </Button>
-            <Button type="button" variant="outline" onClick={() => onSubmit("draft")}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onSubmit("draft")}
+            >
               <Save className="h-4 w-4" />
               Save as draft
             </Button>
@@ -468,7 +520,9 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
           {/* ---------------------------------------------------- basics */}
           <Card>
             <CardHeader>
-              <h2 className="text-[15px] font-semibold text-ink">Basic information</h2>
+              <h2 className="text-[15px] font-semibold text-ink">
+                Basic information
+              </h2>
               <p className="text-[12.5px] text-ink-muted">
                 The core listing details customers see on the storefront.
               </p>
@@ -535,23 +589,31 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                     aria-invalid={Boolean(formState.errors.description)}
                     {...register("description")}
                   />
-                  <FieldError>{formState.errors.description?.message}</FieldError>
+                  <FieldError>
+                    {formState.errors.description?.message}
+                  </FieldError>
                 </div>
 
                 <div>
                   <Label>Category</Label>
                   <Select
                     value={values.categoryId}
-                    onValueChange={(value) => setValue("categoryId", value, { shouldValidate: true })}
+                    onValueChange={(value) =>
+                      setValue("categoryId", value, { shouldValidate: true })
+                    }
                   >
-                    <SelectTrigger aria-invalid={Boolean(formState.errors.categoryId)}>
+                    <SelectTrigger
+                      aria-invalid={Boolean(formState.errors.categoryId)}
+                    >
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
                       {state.categories
                         .filter((c) => c.status === "active")
                         .map((parent) => {
-                          const children = leafCategories.filter((c) => c.parentId === parent.id);
+                          const children = leafCategories.filter(
+                            (c) => c.parentId === parent.id,
+                          );
                           if (!children.length) {
                             return (
                               <SelectItem key={parent.id} value={parent.id}>
@@ -574,14 +636,18 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                         })}
                     </SelectContent>
                   </Select>
-                  <FieldError>{formState.errors.categoryId?.message}</FieldError>
+                  <FieldError>
+                    {formState.errors.categoryId?.message}
+                  </FieldError>
                 </div>
 
                 <div>
                   <Label>Gender</Label>
                   <Select
                     value={values.gender}
-                    onValueChange={(value) => setValue("gender", value as BasicsForm["gender"])}
+                    onValueChange={(value) =>
+                      setValue("gender", value as BasicsForm["gender"])
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -590,7 +656,6 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                       <SelectItem value="unisex">Unisex</SelectItem>
                       <SelectItem value="men">Men</SelectItem>
                       <SelectItem value="women">Women</SelectItem>
-                      <SelectItem value="kids">Kids</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -610,7 +675,9 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                   <Label>Status</Label>
                   <Select
                     value={values.status}
-                    onValueChange={(value) => setValue("status", value as Product["status"])}
+                    onValueChange={(value) =>
+                      setValue("status", value as Product["status"])
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -628,34 +695,21 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                 <div className="flex items-start gap-3">
                   <Sparkles className="mt-0.5 h-4 w-4 text-brand-600" />
                   <div>
-                    <p className="text-[13px] font-medium text-ink">Engravable product</p>
+                    <p className="text-[13px] font-medium text-ink">
+                      Engravable product
+                    </p>
                     <p className="text-[12px] text-ink-muted">
-                      Engraved orders require advance payment — Cash on Delivery is blocked at
-                      checkout for engraved items.
+                      Engraved orders require advance payment — Cash on Delivery
+                      is blocked at checkout for engraved items.
                     </p>
                   </div>
                 </div>
                 <Switch
                   checked={values.engraveable}
-                  onCheckedChange={(checked) => setValue("engraveable", checked)}
+                  onCheckedChange={(checked) =>
+                    setValue("engraveable", checked)
+                  }
                   aria-label="Toggle engravable"
-                />
-              </div>
-
-              <div className="flex items-center justify-between rounded-lg border border-line bg-surface-muted/60 p-3.5">
-                <div className="flex items-start gap-3">
-                  <Star className="mt-0.5 h-4 w-4 text-amber-500" />
-                  <div>
-                    <p className="text-[13px] font-medium text-ink">Featured product</p>
-                    <p className="text-[12px] text-ink-muted">
-                      Highlighted on the storefront home page.
-                    </p>
-                  </div>
-                </div>
-                <Switch
-                  checked={values.featured}
-                  onCheckedChange={(checked) => setValue("featured", checked)}
-                  aria-label="Toggle featured"
                 />
               </div>
             </CardContent>
@@ -667,7 +721,8 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
               <div>
                 <h2 className="text-[15px] font-semibold text-ink">Colours</h2>
                 <p className="text-[12.5px] text-ink-muted">
-                  Each colour can carry its own images and generates its own variants.
+                  Each colour can carry its own images and generates its own
+                  variants.
                 </p>
               </div>
               <Badge variant="brand">
@@ -679,7 +734,9 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
               {colors.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-line-strong bg-surface-muted/50 px-4 py-8 text-center">
                   <Palette className="mx-auto h-5 w-5 text-ink-muted" />
-                  <p className="mt-2 text-[13px] font-medium text-ink">No colours yet</p>
+                  <p className="mt-2 text-[13px] font-medium text-ink">
+                    No colours yet
+                  </p>
                   <p className="text-[12px] text-ink-muted">
                     Add a colour to unlock colour-specific images and variants.
                   </p>
@@ -709,17 +766,28 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                             type="color"
                             value={color.hex}
                             className="h-8 w-10 cursor-pointer rounded border border-line-strong bg-surface p-0.5"
-                            onChange={(e) => updateColor(color.id, { hex: e.target.value })}
+                            onChange={(e) =>
+                              updateColor(color.id, { hex: e.target.value })
+                            }
                           />
-                          <Button type="button" size="sm" variant="ghost" onClick={() => setEditingColorId(null)}>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setEditingColorId(null)}
+                          >
                             Done
                           </Button>
                         </>
                       ) : (
                         <>
                           <div className="min-w-0 flex-1">
-                            <p className="text-[13px] font-medium text-ink">{color.name}</p>
-                            <p className="font-mono text-[11.5px] text-ink-muted">{color.hex}</p>
+                            <p className="text-[13px] font-medium text-ink">
+                              {color.name}
+                            </p>
+                            <p className="font-mono text-[11.5px] text-ink-muted">
+                              {color.hex}
+                            </p>
                           </div>
                           <Button
                             type="button"
@@ -751,7 +819,12 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                   <Input
                     id="colorName"
                     value={colorDraft.name}
-                    onChange={(e) => setColorDraft((prev) => ({ ...prev, name: e.target.value }))}
+                    onChange={(e) =>
+                      setColorDraft((prev) => ({
+                        ...prev,
+                        name: e.target.value,
+                      }))
+                    }
                     placeholder="e.g. Peacock Teal"
                     className="h-9 w-52"
                   />
@@ -759,7 +832,12 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                     type="color"
                     aria-label="Pick colour"
                     value={colorDraft.hex}
-                    onChange={(e) => setColorDraft((prev) => ({ ...prev, hex: e.target.value }))}
+                    onChange={(e) =>
+                      setColorDraft((prev) => ({
+                        ...prev,
+                        hex: e.target.value,
+                      }))
+                    }
                     className="h-9 w-12 cursor-pointer rounded-md border border-line-strong bg-surface p-1"
                   />
                   <Button type="button" variant="outline" onClick={addColor}>
@@ -768,13 +846,21 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                   </Button>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                  <span className="text-[11.5px] text-ink-muted">Quick picks:</span>
+                  <span className="text-[11.5px] text-ink-muted">
+                    Quick picks:
+                  </span>
                   {COLOR_LIBRARY.slice(0, 10).map((preset) => (
                     <button
                       key={preset.id}
                       type="button"
                       title={preset.name}
-                      onClick={() => setColorDraft((prev) => ({ ...prev, name: preset.name, hex: preset.hex }))}
+                      onClick={() =>
+                        setColorDraft((prev) => ({
+                          ...prev,
+                          name: preset.name,
+                          hex: preset.hex,
+                        }))
+                      }
                       className="h-6 w-6 rounded-full border border-line-strong transition-transform hover:scale-110"
                       style={{ backgroundColor: preset.hex }}
                     />
@@ -788,9 +874,12 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
           <Card>
             <CardHeader className="flex-row items-start justify-between gap-3">
               <div>
-                <h2 className="text-[15px] font-semibold text-ink">Product images</h2>
+                <h2 className="text-[15px] font-semibold text-ink">
+                  Product images
+                </h2>
                 <p className="text-[12.5px] text-ink-muted">
-                  Shared images are used when no colour is selected; colour images override them.
+                  Shared images are used when no colour is selected; colour
+                  images override them.
                 </p>
               </div>
               <Badge variant="navy">
@@ -802,9 +891,11 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
               {images.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-line-strong bg-surface-muted/50 px-4 py-8 text-center">
                   <ImagePlus className="mx-auto h-5 w-5 text-ink-muted" />
-                  <p className="mt-2 text-[13px] font-medium text-ink">No images uploaded</p>
+                  <p className="mt-2 text-[13px] font-medium text-ink">
+                    No images uploaded
+                  </p>
                   <p className="text-[12px] text-ink-muted">
-                    Add an image URL below or pick one from the mock library.
+                    Add an HTTPS ImageKit URL and its file ID below.
                   </p>
                 </div>
               ) : (
@@ -814,7 +905,9 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                       key={image.id}
                       className={cn(
                         "group relative overflow-hidden rounded-lg border bg-surface",
-                        image.isMain ? "border-brand-400 ring-2 ring-brand-100" : "border-line",
+                        image.isMain
+                          ? "border-brand-400 ring-2 ring-brand-100"
+                          : "border-line",
                       )}
                     >
                       <div className="aspect-square w-full overflow-hidden bg-surface-muted">
@@ -827,7 +920,8 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                       <div className="flex items-center justify-between gap-1 border-t border-line px-2 py-1.5">
                         <span className="truncate text-[11px] text-ink-muted">
                           {image.colorId
-                            ? colors.find((c) => c.id === image.colorId)?.name ?? "Colour"
+                            ? (colors.find((c) => c.id === image.colorId)
+                                ?.name ?? "Colour")
                             : "Shared"}
                         </span>
                         {image.isMain && <Badge variant="brand">Main</Badge>}
@@ -885,15 +979,23 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                     id="imageUrl"
                     value={imageUrl}
                     onChange={(e) => setImageUrl(e.target.value)}
-                    placeholder="https://… or /products/…"
+                    placeholder="https://ik.imagekit.io/…"
                     className="h-9 min-w-[220px] flex-1"
+                  />
+                  <Input
+                    aria-label="ImageKit file ID"
+                    placeholder="ImageKit file ID"
+                    value={imageFileId}
+                    onChange={(e) => setImageFileId(e.target.value)}
                   />
                   <Select value={imageColor} onValueChange={setImageColor}>
                     <SelectTrigger className="w-[170px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="shared">Shared (all colours)</SelectItem>
+                      <SelectItem value="shared">
+                        Shared (all colours)
+                      </SelectItem>
                       {colors.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.name}
@@ -904,28 +1006,16 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => addImage(imageUrl, imageColor === "shared" ? null : imageColor)}
+                    onClick={() =>
+                      addImage(
+                        imageUrl,
+                        imageColor === "shared" ? null : imageColor,
+                      )
+                    }
                   >
                     <Plus className="h-4 w-4" />
                     Add image
                   </Button>
-                </div>
-
-                <p className="mt-3 text-[11.5px] font-medium uppercase tracking-wider text-ink-muted">
-                  Mock library
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {IMAGE_LIBRARY.map((src) => (
-                    <button
-                      key={src}
-                      type="button"
-                      onClick={() => addImage(src, imageColor === "shared" ? null : imageColor)}
-                      className="h-14 w-14 overflow-hidden rounded-md border border-line transition-transform hover:scale-105"
-                      title={src}
-                    >
-                      <img src={src} alt={src} className="h-full w-full object-cover" />
-                    </button>
-                  ))}
                 </div>
               </div>
             </CardContent>
@@ -937,7 +1027,8 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
               <div>
                 <h2 className="text-[15px] font-semibold text-ink">Variants</h2>
                 <p className="text-[12.5px] text-ink-muted">
-                  Generate from colours × sizes, then fine-tune pricing and stock inline.
+                  Generate from colours × sizes, then fine-tune pricing and
+                  stock inline.
                 </p>
               </div>
               <Badge variant="brand">
@@ -966,21 +1057,29 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                       </button>
                     ))}
                   </div>
-                  <FieldHint>Selected: {sizes.length ? sizes.join(", ") : "none yet"}</FieldHint>
+                  <FieldHint>
+                    Selected: {sizes.length ? sizes.join(", ") : "none yet"}
+                  </FieldHint>
                 </div>
 
                 <div className="flex flex-col justify-between gap-3 rounded-lg border border-line bg-surface-muted/50 p-3.5">
                   <div>
                     <Label>Generate variants</Label>
                     <p className="mt-1 text-[12px] text-ink-muted">
-                      Creates one variant per colour and size. Values you have already edited are
-                      preserved.
+                      Creates one variant per colour and size. Values you have
+                      already edited are preserved.
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Button type="button" variant="outline" onClick={generateVariants}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={generateVariants}
+                    >
                       <Wand2 className="h-4 w-4" />
-                      {variants.length ? "Regenerate variants" : "Generate variants"}
+                      {variants.length
+                        ? "Regenerate variants"
+                        : "Generate variants"}
                     </Button>
                     <Button
                       type="button"
@@ -1005,9 +1104,12 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
               {variants.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-line-strong bg-surface-muted/50 px-4 py-8 text-center">
                   <Layers className="mx-auto h-5 w-5 text-ink-muted" />
-                  <p className="mt-2 text-[13px] font-medium text-ink">No variants yet</p>
+                  <p className="mt-2 text-[13px] font-medium text-ink">
+                    No variants yet
+                  </p>
                   <p className="text-[12px] text-ink-muted">
-                    Choose sizes and press “Generate variants” to build sellable combinations.
+                    Choose sizes and press “Generate variants” to build sellable
+                    combinations.
                   </p>
                 </div>
               ) : (
@@ -1045,14 +1147,19 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                       </thead>
                       <tbody>
                         {variants.map((variant) => (
-                          <tr key={variant.id} className="border-b border-line last:border-0 hover:bg-surface-muted/60">
+                          <tr
+                            key={variant.id}
+                            className="border-b border-line last:border-0 hover:bg-surface-muted/60"
+                          >
                             <td className="px-3 py-1.5">
                               <span className="flex items-center gap-2">
                                 <span
                                   className="h-4 w-4 shrink-0 rounded-full border border-line-strong"
                                   style={{ backgroundColor: variant.colorHex }}
                                 />
-                                <span className="truncate text-[12.5px] text-ink">{variant.colorName}</span>
+                                <span className="truncate text-[12.5px] text-ink">
+                                  {variant.colorName}
+                                </span>
                               </span>
                             </td>
                             <td className="px-3 py-1.5">
@@ -1070,7 +1177,11 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                             <td className="px-3 py-1.5">
                               <Input
                                 value={variant.sku}
-                                onChange={(e) => updateVariant(variant.id, { sku: e.target.value })}
+                                onChange={(e) =>
+                                  updateVariant(variant.id, {
+                                    sku: e.target.value,
+                                  })
+                                }
                                 className="h-7 w-40 px-2 font-mono text-[11.5px]"
                               />
                             </td>
@@ -1080,7 +1191,9 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                                 min={0}
                                 value={variant.price}
                                 onChange={(e) =>
-                                  updateVariant(variant.id, { price: Number(e.target.value) })
+                                  updateVariant(variant.id, {
+                                    price: Number(e.target.value),
+                                  })
                                 }
                                 className="h-7 w-24 px-2 text-right text-[12.5px] tabular"
                               />
@@ -1093,7 +1206,10 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                                 placeholder="—"
                                 onChange={(e) =>
                                   updateVariant(variant.id, {
-                                    compareAtPrice: e.target.value === "" ? null : Number(e.target.value),
+                                    compareAtPrice:
+                                      e.target.value === ""
+                                        ? null
+                                        : Number(e.target.value),
                                   })
                                 }
                                 className="h-7 w-24 px-2 text-right text-[12.5px] tabular"
@@ -1104,8 +1220,16 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                                 type="number"
                                 min={0}
                                 value={variant.stock}
+                                disabled={Boolean(
+                                  existing?.variants.some(
+                                    (v) => v.id === variant.id,
+                                  ),
+                                )}
+                                title="Adjust existing stock from the Inventory page"
                                 onChange={(e) =>
-                                  updateVariant(variant.id, { stock: Number(e.target.value) })
+                                  updateVariant(variant.id, {
+                                    stock: Number(e.target.value),
+                                  })
                                 }
                                 className="h-7 w-20 px-2 text-right text-[12.5px] tabular"
                               />
@@ -1116,7 +1240,9 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                                 min={0}
                                 value={variant.reorderLevel}
                                 onChange={(e) =>
-                                  updateVariant(variant.id, { reorderLevel: Number(e.target.value) })
+                                  updateVariant(variant.id, {
+                                    reorderLevel: Number(e.target.value),
+                                  })
                                 }
                                 className="h-7 w-20 px-2 text-right text-[12.5px] tabular"
                               />
@@ -1148,8 +1274,9 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line bg-surface-muted/60 px-3 py-2 text-[12px] text-ink-muted">
                     <span>
-                      {variants.length} variants · {variants.filter((v) => v.active).length} active ·
-                      total stock {variants.reduce((s, v) => s + v.stock, 0)}
+                      {variants.length} variants ·{" "}
+                      {variants.filter((v) => v.active).length} active · total
+                      stock {variants.reduce((s, v) => s + v.stock, 0)}
                     </span>
                     <span>
                       {priceRange
@@ -1169,8 +1296,12 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
         <div className="space-y-4 xl:sticky xl:top-20 xl:self-start">
           <Card>
             <CardHeader>
-              <h2 className="text-[15px] font-semibold text-ink">Live preview</h2>
-              <p className="text-[12.5px] text-ink-muted">How the product card appears in-store.</p>
+              <h2 className="text-[15px] font-semibold text-ink">
+                Live preview
+              </h2>
+              <p className="text-[12.5px] text-ink-muted">
+                How the product card appears in-store.
+              </p>
             </CardHeader>
             <CardContent>
               <div className="overflow-hidden rounded-lg border border-line bg-surface">
@@ -1194,7 +1325,9 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                     </p>
                     <ProductStatusBadge status={values.status} />
                   </div>
-                  <p className="font-mono text-[11px] text-ink-muted">/{values.slug || "product-slug"}</p>
+                  <p className="font-mono text-[11px] text-ink-muted">
+                    /{values.slug || "product-slug"}
+                  </p>
                   {priceRange ? (
                     <p className="text-[15px] font-semibold text-ink tabular">
                       {priceRange.min === priceRange.max
@@ -1214,7 +1347,9 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                       />
                     ))}
                     {colors.length === 0 && (
-                      <span className="text-[11.5px] text-ink-muted">No colours</span>
+                      <span className="text-[11.5px] text-ink-muted">
+                        No colours
+                      </span>
                     )}
                   </div>
                   {sizes.length > 0 && (
@@ -1230,8 +1365,12 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                     </div>
                   )}
                   <div className="flex flex-wrap gap-1.5 pt-1">
-                    {values.engraveable && <Badge variant="purple">Engravable</Badge>}
-                    {values.featured && <Badge variant="warning">Featured</Badge>}
+                    {values.engraveable && (
+                      <Badge variant="purple">Engravable</Badge>
+                    )}
+                    {values.featured && (
+                      <Badge variant="warning">Featured</Badge>
+                    )}
                     <Badge variant="neutral">{totalStock} in stock</Badge>
                     <Badge variant="neutral">{variants.length} variants</Badge>
                   </div>
@@ -1246,11 +1385,13 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
               <div className="space-y-1.5 text-[12.5px] text-ink-soft">
                 <p className="font-semibold text-ink">Engraving rule</p>
                 <p>
-                  Engraved orders can only be paid in advance. Cash on Delivery is automatically
-                  removed from checkout when engraving is selected.
+                  Engraved orders can only be paid in advance. Cash on Delivery
+                  is automatically removed from checkout when engraving is
+                  selected.
                 </p>
                 <p className="text-[12px] text-ink-muted">
-                  This prototype stores everything locally — no backend calls are made.
+                  Changes are validated and saved to PostgreSQL through the
+                  admin API.
                 </p>
               </div>
             </CardContent>
@@ -1272,7 +1413,9 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
         onOpenChange={(open) => !open && setDeleteVariant(null)}
         title="Remove variant?"
         description={
-          deleteVariant ? `“${deleteVariant.name}” (${deleteVariant.sku}) will be removed from this product.` : undefined
+          deleteVariant
+            ? `“${deleteVariant.name}” (${deleteVariant.sku}) will be removed from this product.`
+            : undefined
         }
         confirmLabel="Remove variant"
         destructive
@@ -1282,7 +1425,6 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
           toast({ title: "Variant removed", variant: "info" });
         }}
       />
-
     </form>
   );
 }
@@ -1336,7 +1478,8 @@ function ManualVariantDialog({
         <DialogHeader>
           <DialogTitle>Add manual variant</DialogTitle>
           <DialogDescription>
-            Create a one-off combination that sits outside the colour × size matrix.
+            Create a one-off combination that sits outside the colour × size
+            matrix.
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="space-y-4">
@@ -1412,7 +1555,16 @@ function ManualVariantDialog({
           </Button>
           <Button
             disabled={!colorId || !size.trim() || !sku.trim() || price <= 0}
-            onClick={() => onAdd({ colorId, size: size.trim(), sku: sku.trim(), price, stock, reorderLevel })}
+            onClick={() =>
+              onAdd({
+                colorId,
+                size: size.trim(),
+                sku: sku.trim(),
+                price,
+                stock,
+                reorderLevel,
+              })
+            }
           >
             Add variant
           </Button>

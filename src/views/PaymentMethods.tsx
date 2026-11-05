@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useEffect, useState } from "react";
 import {
@@ -47,7 +47,9 @@ export default function PaymentMethodsPage() {
   const { toast } = useToast();
   const [editing, setEditing] = useState<PaymentMethod | null>(null);
 
-  const methods = [...state.paymentMethods].sort((a, b) => a.displayOrder - b.displayOrder);
+  const methods = [...state.paymentMethods].sort(
+    (a, b) => a.displayOrder - b.displayOrder,
+  );
 
   return (
     <div className="space-y-5">
@@ -60,11 +62,14 @@ export default function PaymentMethodsPage() {
       <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
         <ShieldAlert className="mt-0.5 h-4.5 w-4.5 shrink-0 text-amber-600" />
         <div>
-          <p className="text-[13px] font-semibold text-amber-900">Engraving payment rule</p>
+          <p className="text-[13px] font-semibold text-amber-900">
+            Engraving payment rule
+          </p>
           <p className="mt-1 text-[12.5px] leading-relaxed text-amber-800">
-            Cash on Delivery is not available when engraving is selected. Engraved orders require
-            advance payment — the COD method is therefore locked for engraving and the checkout
-            removes it automatically for engraved items.
+            Cash on Delivery is not available when engraving is selected.
+            Engraved orders require advance payment — the COD method is
+            therefore locked for engraving and the checkout removes it
+            automatically for engraved items.
           </p>
         </div>
       </div>
@@ -73,7 +78,10 @@ export default function PaymentMethodsPage() {
         {methods.map((method) => {
           const Icon = METHOD_ICON[method.id] ?? Wallet;
           return (
-            <Card key={method.id} className={cn(!method.active && "opacity-70")}>
+            <Card
+              key={method.id}
+              className={cn(!method.active && "opacity-70")}
+            >
               <CardContent className="p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3">
@@ -89,15 +97,23 @@ export default function PaymentMethodsPage() {
                     </span>
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-[14px] font-semibold text-ink">{method.name}</p>
+                        <p className="text-[14px] font-semibold text-ink">
+                          {method.name}
+                        </p>
                         <Badge variant={method.active ? "success" : "neutral"}>
                           {method.active ? "Active" : "Inactive"}
                         </Badge>
                       </div>
-                      <p className="mt-0.5 text-[12.5px] text-ink-muted">{method.description}</p>
+                      <p className="mt-0.5 text-[12.5px] text-ink-muted">
+                        {method.description}
+                      </p>
                     </div>
                   </div>
-                  <Button variant="outline" size="sm" onClick={() => setEditing(method)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditing(method)}
+                  >
                     <Pencil className="h-3.5 w-3.5" />
                     Edit
                   </Button>
@@ -105,12 +121,18 @@ export default function PaymentMethodsPage() {
 
                 <dl className="mt-4 grid gap-3 sm:grid-cols-2">
                   <div>
-                    <dt className="text-[11.5px] text-ink-muted">Account title</dt>
-                    <dd className="mt-0.5 text-[13px] font-medium text-ink">{method.accountTitle}</dd>
+                    <dt className="text-[11.5px] text-ink-muted">
+                      Account title
+                    </dt>
+                    <dd className="mt-0.5 text-[13px] font-medium text-ink">
+                      {method.accountTitle}
+                    </dd>
                   </div>
                   <div>
                     <dt className="text-[11.5px] text-ink-muted">
-                      {method.id === "bank" ? "Account number" : "Wallet number"}
+                      {method.id === "bank"
+                        ? "Account number"
+                        : "Wallet number"}
                     </dt>
                     <dd className="mt-0.5 font-mono text-[13px] font-medium text-ink">
                       {method.accountNumber}
@@ -118,14 +140,20 @@ export default function PaymentMethodsPage() {
                   </div>
                   {method.bankName !== "—" && (
                     <div>
-                      <dt className="text-[11.5px] text-ink-muted">Bank / provider</dt>
-                      <dd className="mt-0.5 text-[13px] text-ink-soft">{method.bankName}</dd>
+                      <dt className="text-[11.5px] text-ink-muted">
+                        Bank / provider
+                      </dt>
+                      <dd className="mt-0.5 text-[13px] text-ink-soft">
+                        {method.bankName}
+                      </dd>
                     </div>
                   )}
                   {method.iban && (
                     <div>
                       <dt className="text-[11.5px] text-ink-muted">IBAN</dt>
-                      <dd className="mt-0.5 font-mono text-[12.5px] text-ink-soft">{method.iban}</dd>
+                      <dd className="mt-0.5 font-mono text-[12.5px] text-ink-soft">
+                        {method.iban}
+                      </dd>
                     </div>
                   )}
                 </dl>
@@ -138,7 +166,9 @@ export default function PaymentMethodsPage() {
 
                 <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3.5">
                   <Badge variant={method.allowEngraving ? "success" : "danger"}>
-                    {method.allowEngraving ? "Allowed with engraving" : "Not allowed with engraving"}
+                    {method.allowEngraving
+                      ? "Allowed with engraving"
+                      : "Not allowed with engraving"}
                   </Badge>
                   {method.supportsProof && (
                     <Badge variant="neutral">
@@ -160,14 +190,22 @@ export default function PaymentMethodsPage() {
         <CardContent className="flex items-start gap-3 p-4">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />
           <div className="text-[12.5px] text-ink-soft">
-            <p className="text-[13px] font-semibold text-ink">Store-level configuration</p>
+            <p className="text-[13px] font-semibold text-ink">
+              Store-level configuration
+            </p>
             <p className="mt-1">
               The payment deadline is set in{" "}
-              <a href="/settings" className="font-medium text-brand-700 hover:underline">
+              <a
+                href="/settings"
+                className="font-medium text-brand-700 hover:underline"
+              >
                 Store Settings
               </a>
-              . Unpaid orders are automatically cancelled after the deadline. Current default:{" "}
-              <span className="font-medium text-ink">{state.settings.paymentDeadlineHours} hours</span>
+              . Unpaid orders are automatically cancelled after the deadline.
+              Current default:{" "}
+              <span className="font-medium text-ink">
+                {state.settings.paymentDeadlineHours} hours
+              </span>
               .
             </p>
           </div>
@@ -177,13 +215,17 @@ export default function PaymentMethodsPage() {
       <PaymentMethodDialog
         method={editing}
         onClose={() => setEditing(null)}
-        onSave={(method) => {
-          savePaymentMethod(method);
-          toast({
-            title: "Payment method updated",
-            description: `${method.name} settings saved.`,
-          });
-          setEditing(null);
+        onSave={async (method) => {
+          try {
+            await savePaymentMethod(method);
+            toast({
+              title: "Payment method updated",
+              description: `${method.name} settings saved.`,
+            });
+            setEditing(null);
+          } catch {
+            return false;
+          }
         }}
       />
     </div>
@@ -226,18 +268,26 @@ function PaymentMethodDialog({
               <Input
                 id="pm-title"
                 value={draft.accountTitle}
-                onChange={(e) => setDraft({ ...draft, accountTitle: e.target.value })}
+                onChange={(e) =>
+                  setDraft({ ...draft, accountTitle: e.target.value })
+                }
                 disabled={isCod}
               />
             </div>
             <div>
               <Label htmlFor="pm-number">
-                {isCod ? "Account number" : draft.id === "bank" ? "Account number" : "Wallet number"}
+                {isCod
+                  ? "Account number"
+                  : draft.id === "bank"
+                    ? "Account number"
+                    : "Wallet number"}
               </Label>
               <Input
                 id="pm-number"
                 value={draft.accountNumber}
-                onChange={(e) => setDraft({ ...draft, accountNumber: e.target.value })}
+                onChange={(e) =>
+                  setDraft({ ...draft, accountNumber: e.target.value })
+                }
                 disabled={isCod}
               />
             </div>
@@ -246,7 +296,9 @@ function PaymentMethodDialog({
               <Input
                 id="pm-bank"
                 value={draft.bankName}
-                onChange={(e) => setDraft({ ...draft, bankName: e.target.value })}
+                onChange={(e) =>
+                  setDraft({ ...draft, bankName: e.target.value })
+                }
                 disabled={isCod}
               />
             </div>
@@ -266,7 +318,9 @@ function PaymentMethodDialog({
                 id="pm-instructions"
                 rows={3}
                 value={draft.instructions}
-                onChange={(e) => setDraft({ ...draft, instructions: e.target.value })}
+                onChange={(e) =>
+                  setDraft({ ...draft, instructions: e.target.value })
+                }
                 placeholder="Explain how the customer should send the payment."
               />
             </div>
@@ -277,15 +331,21 @@ function PaymentMethodDialog({
                 type="number"
                 min={1}
                 value={draft.displayOrder}
-                onChange={(e) => setDraft({ ...draft, displayOrder: Number(e.target.value) })}
+                onChange={(e) =>
+                  setDraft({ ...draft, displayOrder: Number(e.target.value) })
+                }
               />
             </div>
             <div className="flex items-end">
               <div className="flex w-full items-center justify-between rounded-md border border-line bg-surface-muted/60 px-3 py-2">
-                <span className="text-[12.5px] font-medium text-ink">Active</span>
+                <span className="text-[12.5px] font-medium text-ink">
+                  Active
+                </span>
                 <Switch
                   checked={draft.active}
-                  onCheckedChange={(checked) => setDraft({ ...draft, active: checked })}
+                  onCheckedChange={(checked) =>
+                    setDraft({ ...draft, active: checked })
+                  }
                 />
               </div>
             </div>
@@ -294,14 +354,26 @@ function PaymentMethodDialog({
           <div
             className={cn(
               "flex items-start justify-between gap-3 rounded-lg border p-3.5",
-              isCod ? "border-amber-200 bg-amber-50" : "border-line bg-surface-muted/60",
+              isCod
+                ? "border-amber-200 bg-amber-50"
+                : "border-line bg-surface-muted/60",
             )}
           >
             <div>
-              <p className={cn("text-[13px] font-medium", isCod ? "text-amber-900" : "text-ink")}>
+              <p
+                className={cn(
+                  "text-[13px] font-medium",
+                  isCod ? "text-amber-900" : "text-ink",
+                )}
+              >
                 Allow with engraving
               </p>
-              <p className={cn("mt-0.5 text-[12px]", isCod ? "text-amber-800" : "text-ink-muted")}>
+              <p
+                className={cn(
+                  "mt-0.5 text-[12px]",
+                  isCod ? "text-amber-800" : "text-ink-muted",
+                )}
+              >
                 {isCod
                   ? "Cash on Delivery cannot be used for engraved orders — advance payment is required."
                   : "Customers can select this method even when their order includes engraving."}

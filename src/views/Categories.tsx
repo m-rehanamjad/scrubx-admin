@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -68,7 +68,8 @@ const CATEGORY_IMAGES = [
 ];
 
 export default function CategoriesPage() {
-  const { state, saveCategory, deleteCategory, toggleCategoryStatus } = useStore();
+  const { state, saveCategory, deleteCategory, toggleCategoryStatus } =
+    useStore();
   const { toast } = useToast();
   const [editing, setEditing] = useState<Category | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -88,7 +89,11 @@ export default function CategoriesPage() {
       .sort((a, b) => a.sortOrder - b.sortOrder);
     const result: { category: Category; depth: number; count: number }[] = [];
     parents.forEach((parent) => {
-      result.push({ category: parent, depth: 0, count: productCounts.get(parent.id) ?? 0 });
+      result.push({
+        category: parent,
+        depth: 0,
+        count: productCounts.get(parent.id) ?? 0,
+      });
       state.categories
         .filter((c) => c.parentId === parent.id)
         .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -122,13 +127,23 @@ export default function CategoriesPage() {
     setDialogOpen(true);
   };
 
-  const handleSave = (category: Category) => {
-    saveCategory({ ...category, slug: slugify(category.name) || category.slug });
-    toast({
-      title: editing && editing.name !== category.name ? "Category updated" : "Category created",
-      description: `${category.name} saved.`,
-    });
-    setDialogOpen(false);
+  const handleSave = async (category: Category) => {
+    try {
+      await saveCategory({
+        ...category,
+        slug: slugify(category.name) || category.slug,
+      });
+      toast({
+        title:
+          editing && editing.name !== category.name
+            ? "Category updated"
+            : "Category created",
+        description: `${category.name} saved.`,
+      });
+      setDialogOpen(false);
+    } catch {
+      return false;
+    }
   };
 
   return (
@@ -184,29 +199,47 @@ export default function CategoriesPage() {
                         </div>
                         <div className="min-w-0">
                           <p className="flex items-center gap-1.5 text-[13px] font-medium text-ink">
-                            {depth === 0 && <FolderTree className="h-3.5 w-3.5 text-ink-muted" />}
+                            {depth === 0 && (
+                              <FolderTree className="h-3.5 w-3.5 text-ink-muted" />
+                            )}
                             {category.name}
                           </p>
-                          <p className="text-[11.5px] text-ink-muted">/{category.slug}</p>
+                          <p className="text-[11.5px] text-ink-muted">
+                            /{category.slug}
+                          </p>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
                       {category.parentId
-                        ? state.categories.find((c) => c.id === category.parentId)?.name ?? "—"
+                        ? (state.categories.find(
+                            (c) => c.id === category.parentId,
+                          )?.name ?? "—")
                         : "Top level"}
                     </TableCell>
-                    <TableCell className="text-right tabular">{count}</TableCell>
-                    <TableCell className="text-right tabular">{category.sortOrder}</TableCell>
+                    <TableCell className="text-right tabular">
+                      {count}
+                    </TableCell>
+                    <TableCell className="text-right tabular">
+                      {category.sortOrder}
+                    </TableCell>
                     <TableCell>
-                      <Badge variant={category.status === "active" ? "success" : "neutral"}>
+                      <Badge
+                        variant={
+                          category.status === "active" ? "success" : "neutral"
+                        }
+                      >
                         {category.status === "active" ? "Active" : "Inactive"}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon-sm" aria-label="Category actions">
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label="Category actions"
+                          >
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -216,7 +249,15 @@ export default function CategoriesPage() {
                             <Pencil className="h-3.5 w-3.5" />
                             Edit category
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => toggleCategoryStatus(category.id)}>
+                          <DropdownMenuItem
+                            onClick={async () => {
+                              try {
+                                return await toggleCategoryStatus(category.id);
+                              } catch {
+                                return false;
+                              }
+                            }}
+                          >
                             {category.status === "active" ? (
                               <>
                                 <PowerOff className="h-3.5 w-3.5" />
@@ -230,7 +271,10 @@ export default function CategoriesPage() {
                             )}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem destructive onClick={() => setDeleteTarget(category)}>
+                          <DropdownMenuItem
+                            destructive
+                            onClick={() => setDeleteTarget(category)}
+                          >
                             <Trash2 className="h-3.5 w-3.5" />
                             Delete
                           </DropdownMenuItem>
@@ -264,10 +308,14 @@ export default function CategoriesPage() {
         }
         confirmLabel="Delete category"
         destructive
-        onConfirm={() => {
-          if (!deleteTarget) return;
-          deleteCategory(deleteTarget.id);
-          toast({ title: "Category deleted", variant: "error" });
+        onConfirm={async () => {
+          try {
+            if (!deleteTarget) return;
+            await deleteCategory(deleteTarget.id);
+            toast({ title: "Category deleted", variant: "error" });
+          } catch {
+            return false;
+          }
         }}
       />
     </div>
@@ -302,7 +350,9 @@ function CategoryDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>{category?.name ? "Edit category" : "New category"}</DialogTitle>
+          <DialogTitle>
+            {category?.name ? "Edit category" : "New category"}
+          </DialogTitle>
           <DialogDescription>
             Categories can be nested one level deep — parent and sub-category.
           </DialogDescription>
@@ -323,7 +373,10 @@ function CategoryDialog({
               <Select
                 value={draft.parentId ?? "none"}
                 onValueChange={(value) =>
-                  setDraft({ ...draft, parentId: value === "none" ? null : value })
+                  setDraft({
+                    ...draft,
+                    parentId: value === "none" ? null : value,
+                  })
                 }
               >
                 <SelectTrigger>
@@ -345,7 +398,9 @@ function CategoryDialog({
                 id="cat-order"
                 type="number"
                 value={draft.sortOrder}
-                onChange={(e) => setDraft({ ...draft, sortOrder: Number(e.target.value) })}
+                onChange={(e) =>
+                  setDraft({ ...draft, sortOrder: Number(e.target.value) })
+                }
               />
             </div>
             <div className="sm:col-span-2">
@@ -354,7 +409,9 @@ function CategoryDialog({
                 id="cat-desc"
                 rows={3}
                 value={draft.description}
-                onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+                onChange={(e) =>
+                  setDraft({ ...draft, description: e.target.value })
+                }
                 placeholder="Short description shown on the storefront."
               />
             </div>
@@ -372,7 +429,11 @@ function CategoryDialog({
                     draft.image === src ? "border-brand-500" : "border-line"
                   }`}
                 >
-                  <img src={src} alt="" className="h-full w-full object-cover" />
+                  <img
+                    src={src}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
                 </button>
               ))}
             </div>

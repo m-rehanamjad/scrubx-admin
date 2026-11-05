@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -26,14 +26,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../components/ui/tabs";
 import { PageHeader } from "../components/shared/page-header";
 import { EmptyState } from "../components/shared/empty-state";
 import { SearchInput } from "../components/shared/search-input";
 import { Avatar } from "../components/shared/thumb";
 import { useToast } from "../components/ui/toast";
 import { useStore } from "../data/store";
-import { PAYMENT_METHOD_LABEL } from "../data/mock";
+import { PAYMENT_METHOD_LABEL } from "../data/constants";
 import { formatDateTime, formatPKR } from "../lib/format";
 import { cn } from "../lib/utils";
 
@@ -46,7 +51,10 @@ export default function PaymentsPage() {
   const [rejectReason, setRejectReason] = useState("");
 
   const submissions = useMemo(
-    () => [...state.paymentSubmissions].sort((a, b) => +new Date(b.submittedAt) - +new Date(a.submittedAt)),
+    () =>
+      [...state.paymentSubmissions].sort(
+        (a, b) => +new Date(b.submittedAt) - +new Date(a.submittedAt),
+      ),
     [state.paymentSubmissions],
   );
 
@@ -97,7 +105,9 @@ export default function PaymentsPage() {
   ];
 
   const proof = state.paymentSubmissions.find((s) => s.id === proofTarget);
-  const rejectSubmission = state.paymentSubmissions.find((s) => s.id === rejectTarget);
+  const rejectSubmission = state.paymentSubmissions.find(
+    (s) => s.id === rejectTarget,
+  );
 
   return (
     <div className="space-y-5">
@@ -118,7 +128,9 @@ export default function PaymentsPage() {
           <Card key={stat.label}>
             <CardContent className="flex items-start justify-between p-4">
               <div>
-                <p className="text-[12px] font-medium text-ink-muted">{stat.label}</p>
+                <p className="text-[12px] font-medium text-ink-muted">
+                  {stat.label}
+                </p>
                 <p className="mt-1.5 text-[20px] font-semibold leading-none text-ink tabular">
                   {stat.value}
                 </p>
@@ -145,8 +157,12 @@ export default function PaymentsPage() {
           <Tabs defaultValue="pending">
             <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
               <TabsList>
-                <TabsTrigger value="pending">Pending ({pending.length})</TabsTrigger>
-                <TabsTrigger value="all">All ({submissions.length})</TabsTrigger>
+                <TabsTrigger value="pending">
+                  Pending ({pending.length})
+                </TabsTrigger>
+                <TabsTrigger value="all">
+                  All ({submissions.length})
+                </TabsTrigger>
                 <TabsTrigger value="approved">Approved</TabsTrigger>
                 <TabsTrigger value="rejected">Rejected</TabsTrigger>
               </TabsList>
@@ -162,12 +178,17 @@ export default function PaymentsPage() {
               <SubmissionList
                 items={filtered.filter((s) => s.status === "submitted")}
                 onViewProof={setProofTarget}
-                onApprove={(id) => {
-                  approvePayment(id);
-                  toast({
-                    title: "Payment approved",
-                    description: "The order has been confirmed automatically.",
-                  });
+                onApprove={async (id) => {
+                  try {
+                    await approvePayment(id);
+                    toast({
+                      title: "Payment approved",
+                      description:
+                        "The order has been confirmed automatically.",
+                    });
+                  } catch {
+                    return false;
+                  }
                 }}
                 onReject={(id) => {
                   setRejectTarget(id);
@@ -201,7 +222,10 @@ export default function PaymentsPage() {
                 items={filtered.filter((s) => s.status === "approved")}
                 onViewProof={setProofTarget}
                 emptyState={
-                  <EmptyState className="m-4" title="No approved payments yet" />
+                  <EmptyState
+                    className="m-4"
+                    title="No approved payments yet"
+                  />
                 }
               />
             </TabsContent>
@@ -218,7 +242,10 @@ export default function PaymentsPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={Boolean(proofTarget)} onOpenChange={(open) => !open && setProofTarget(null)}>
+      <Dialog
+        open={Boolean(proofTarget)}
+        onOpenChange={(open) => !open && setProofTarget(null)}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Payment proof</DialogTitle>
@@ -248,19 +275,23 @@ export default function PaymentsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(rejectTarget)} onOpenChange={(open) => !open && setRejectTarget(null)}>
+      <Dialog
+        open={Boolean(rejectTarget)}
+        onOpenChange={(open) => !open && setRejectTarget(null)}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Reject payment</DialogTitle>
             <DialogDescription>
-              {rejectSubmission?.orderNumber} · {rejectSubmission && formatPKR(rejectSubmission.amount)}
+              {rejectSubmission?.orderNumber} ·{" "}
+              {rejectSubmission && formatPKR(rejectSubmission.amount)}
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="space-y-3">
             <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-[12.5px] text-amber-800">
               <FileWarning className="mt-0.5 h-4 w-4 shrink-0" />
-              Rejecting returns the order to “Awaiting Payment” and notifies the customer to send a
-              fresh transfer.
+              Rejecting returns the order to “Awaiting Payment” and notifies the
+              customer to send a fresh transfer.
             </div>
             <div>
               <Label htmlFor="reject-reason">Reason for rejection</Label>
@@ -281,15 +312,20 @@ export default function PaymentsPage() {
             <Button
               variant="danger"
               disabled={!rejectReason.trim()}
-              onClick={() => {
-                if (!rejectTarget) return;
-                rejectPayment(rejectTarget, rejectReason.trim());
-                toast({
-                  title: "Payment rejected",
-                  description: "The customer has been asked to re-submit the payment.",
-                  variant: "error",
-                });
-                setRejectTarget(null);
+              onClick={async () => {
+                try {
+                  if (!rejectTarget) return;
+                  await rejectPayment(rejectTarget, rejectReason.trim());
+                  toast({
+                    title: "Payment rejected",
+                    description:
+                      "The customer has been asked to re-submit the payment.",
+                    variant: "error",
+                  });
+                  setRejectTarget(null);
+                } catch {
+                  return false;
+                }
               }}
             >
               Reject payment
@@ -319,13 +355,20 @@ function SubmissionList({
   return (
     <div className="divide-y divide-line">
       {items.map((item) => (
-        <div key={item.id} className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center">
+        <div
+          key={item.id}
+          className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center"
+        >
           <button
             onClick={() => onViewProof(item.id)}
             className="group relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-line bg-surface-muted"
             aria-label="View payment proof"
           >
-            <img src={item.proofUrl} alt="Payment proof" className="h-full w-full object-cover" />
+            <img
+              src={item.proofUrl}
+              alt="Payment proof"
+              className="h-full w-full object-cover"
+            />
             <span className="absolute inset-0 flex items-center justify-center bg-navy-900/45 opacity-0 transition-opacity group-hover:opacity-100">
               <Eye className="h-4 w-4 text-white" />
             </span>
@@ -340,44 +383,66 @@ function SubmissionList({
                 {item.orderNumber}
               </Link>
               <Badge variant="navy">{PAYMENT_METHOD_LABEL[item.method]}</Badge>
-              {item.status === "submitted" && <Badge variant="warning">Needs review</Badge>}
-              {item.status === "approved" && <Badge variant="success">Approved</Badge>}
-              {item.status === "rejected" && <Badge variant="danger">Rejected</Badge>}
+              {item.status === "submitted" && (
+                <Badge variant="warning">Needs review</Badge>
+              )}
+              {item.status === "approved" && (
+                <Badge variant="success">Approved</Badge>
+              )}
+              {item.status === "rejected" && (
+                <Badge variant="danger">Rejected</Badge>
+              )}
             </div>
             <div className="mt-1.5 flex items-center gap-2">
               <Avatar name={item.customerName} size="sm" />
               <div>
-                <p className="text-[12.5px] font-medium text-ink">{item.customerName}</p>
-                <p className="text-[11.5px] text-ink-muted">{item.customerPhone}</p>
+                <p className="text-[12.5px] font-medium text-ink">
+                  {item.customerName}
+                </p>
+                <p className="text-[11.5px] text-ink-muted">
+                  {item.customerPhone}
+                </p>
               </div>
             </div>
             <p className="mt-1.5 text-[11.5px] text-ink-muted">
-              Ref: <span className="font-mono text-ink-soft">{item.transactionRef}</span> ·{" "}
-              {formatDateTime(item.submittedAt)}
+              Ref:{" "}
+              <span className="font-mono text-ink-soft">
+                {item.transactionRef}
+              </span>{" "}
+              · {formatDateTime(item.submittedAt)}
               {item.rejectionReason && (
-                <span className="ml-1 text-rose-600">— {item.rejectionReason}</span>
+                <span className="ml-1 text-rose-600">
+                  — {item.rejectionReason}
+                </span>
               )}
             </p>
           </div>
 
           <div className="flex items-center justify-between gap-4 lg:flex-col lg:items-end">
-            <p className="text-[17px] font-semibold text-ink tabular">{formatPKR(item.amount)}</p>
+            <p className="text-[17px] font-semibold text-ink tabular">
+              {formatPKR(item.amount)}
+            </p>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => onViewProof(item.id)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onViewProof(item.id)}
+              >
                 <Eye className="h-3.5 w-3.5" />
                 Proof
               </Button>
               {item.status === "submitted" && onApprove && (
-                <Button
-                  size="sm"
-                  onClick={() => onApprove(item.id)}
-                >
+                <Button size="sm" onClick={() => onApprove(item.id)}>
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   Approve
                 </Button>
               )}
               {item.status === "submitted" && onReject && (
-                <Button variant="danger-outline" size="sm" onClick={() => onReject(item.id)}>
+                <Button
+                  variant="danger-outline"
+                  size="sm"
+                  onClick={() => onReject(item.id)}
+                >
                   <XCircle className="h-3.5 w-3.5" />
                   Reject
                 </Button>

@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -48,16 +48,25 @@ import {
 } from "../components/ui/dialog";
 import { PageHeader } from "../components/shared/page-header";
 import { Avatar, ProductThumb } from "../components/shared/thumb";
-import { OrderStatusBadge, PaymentStatusBadge } from "../components/shared/status-badges";
+import {
+  OrderStatusBadge,
+  PaymentStatusBadge,
+} from "../components/shared/status-badges";
 import { EmptyState } from "../components/shared/empty-state";
 import { useToast } from "../components/ui/toast";
 import { useStore } from "../data/store";
-import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "../data/mock";
+import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "../data/constants";
 import { formatDate, formatDateTime, formatPKR } from "../lib/format";
 import { cn } from "../lib/utils";
 import type { OrderStatus } from "../lib/types";
 
-const COURIERS = ["TCS Express", "Leopards Courier", "M&P", "CallCourrier", "Pakistan Post"];
+const COURIERS = [
+  "TCS Express",
+  "Leopards Courier",
+  "M&P",
+  "CallCourrier",
+  "Pakistan Post",
+];
 
 export default function OrderDetailPage({ id: propId }: { id?: string } = {}) {
   const routeParams = useParams();
@@ -65,7 +74,10 @@ export default function OrderDetailPage({ id: propId }: { id?: string } = {}) {
   const { state, setOrderStatus, setOrderCourier, addOrderNote } = useStore();
   const { toast } = useToast();
 
-  const order = useMemo(() => state.orders.find((o) => o.id === id), [state.orders, id]);
+  const order = useMemo(
+    () => state.orders.find((o) => o.id === id),
+    [state.orders, id],
+  );
   const customer = useMemo(
     () => state.customers.find((c) => c.id === order?.customerId),
     [state.customers, order?.customerId],
@@ -106,7 +118,10 @@ export default function OrderDetailPage({ id: propId }: { id?: string } = {}) {
     <div className="space-y-5">
       <PageHeader
         eyebrow={
-          <Link href="/orders" className="inline-flex items-center gap-1 hover:text-brand-800">
+          <Link
+            href="/orders"
+            className="inline-flex items-center gap-1 hover:text-brand-800"
+          >
             <ArrowLeft className="h-3.5 w-3.5" />
             Orders
           </Link>
@@ -118,12 +133,16 @@ export default function OrderDetailPage({ id: propId }: { id?: string } = {}) {
             <OrderStatusBadge status={order.status} />
             <Select
               value={order.status}
-              onValueChange={(value) => {
-                setOrderStatus(order.id, value as OrderStatus);
-                toast({
-                  title: "Order status updated",
-                  description: `${order.orderNumber} is now ${ORDER_STATUS_LABEL[value as OrderStatus]}.`,
-                });
+              onValueChange={async (value) => {
+                try {
+                  await setOrderStatus(order.id, value as OrderStatus);
+                  toast({
+                    title: "Order status updated",
+                    description: `${order.orderNumber} is now ${ORDER_STATUS_LABEL[value as OrderStatus]}.`,
+                  });
+                } catch {
+                  return false;
+                }
               }}
             >
               <SelectTrigger className="w-[190px]">
@@ -157,7 +176,9 @@ export default function OrderDetailPage({ id: propId }: { id?: string } = {}) {
         <div className="space-y-5">
           <Card>
             <CardHeader className="flex-row items-center justify-between gap-3">
-              <h2 className="text-[15px] font-semibold text-ink">Order items</h2>
+              <h2 className="text-[15px] font-semibold text-ink">
+                Order items
+              </h2>
               <Badge variant="neutral">
                 {order.items.reduce((sum, i) => sum + i.quantity, 0)} units
               </Badge>
@@ -179,7 +200,10 @@ export default function OrderDetailPage({ id: propId }: { id?: string } = {}) {
                     <TableRow key={item.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          <ProductThumb src={item.image} alt={item.productName} />
+                          <ProductThumb
+                            src={item.image}
+                            alt={item.productName}
+                          />
                           <div className="min-w-0">
                             <Link
                               href={`/products/${item.productId}/edit`}
@@ -198,11 +222,19 @@ export default function OrderDetailPage({ id: propId }: { id?: string } = {}) {
                       </TableCell>
                       <TableCell>
                         <span className="block text-ink">{item.colorName}</span>
-                        <span className="text-[11.5px] text-ink-muted">Size {item.size}</span>
+                        <span className="text-[11.5px] text-ink-muted">
+                          Size {item.size}
+                        </span>
                       </TableCell>
-                      <TableCell className="font-mono text-[12px]">{item.sku}</TableCell>
-                      <TableCell className="text-right tabular">{formatPKR(item.price)}</TableCell>
-                      <TableCell className="text-right tabular">{item.quantity}</TableCell>
+                      <TableCell className="font-mono text-[12px]">
+                        {item.sku}
+                      </TableCell>
+                      <TableCell className="text-right tabular">
+                        {formatPKR(item.price)}
+                      </TableCell>
+                      <TableCell className="text-right tabular">
+                        {item.quantity}
+                      </TableCell>
                       <TableCell className="text-right font-medium text-ink tabular">
                         {formatPKR(item.price * item.quantity)}
                       </TableCell>
@@ -216,17 +248,26 @@ export default function OrderDetailPage({ id: propId }: { id?: string } = {}) {
           {order.engraving && order.engraving.length > 0 && (
             <Card>
               <CardHeader>
-                <h2 className="text-[15px] font-semibold text-ink">Engraving details</h2>
+                <h2 className="text-[15px] font-semibold text-ink">
+                  Engraving details
+                </h2>
                 <p className="text-[12.5px] text-ink-muted">
                   Production instructions for the embroidery unit.
                 </p>
               </CardHeader>
               <CardContent className="grid gap-3 sm:grid-cols-2">
                 {order.engraving.map((detail, index) => (
-                  <div key={index} className="rounded-lg border border-line bg-surface-muted/50 p-3.5">
+                  <div
+                    key={index}
+                    className="rounded-lg border border-line bg-surface-muted/50 p-3.5"
+                  >
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-[13px] font-semibold text-ink">{detail.optionName}</p>
-                      <Badge variant={detail.type === "logo" ? "navy" : "brand"}>
+                      <p className="text-[13px] font-semibold text-ink">
+                        {detail.optionName}
+                      </p>
+                      <Badge
+                        variant={detail.type === "logo" ? "navy" : "brand"}
+                      >
                         {detail.type === "logo" ? "Logo" : "Name"}
                       </Badge>
                     </div>
@@ -253,7 +294,9 @@ export default function OrderDetailPage({ id: propId }: { id?: string } = {}) {
                           )}
                         </div>
                         <div>
-                          <p className="text-[12px] font-medium text-ink">Clinic logo</p>
+                          <p className="text-[12px] font-medium text-ink">
+                            Clinic logo
+                          </p>
                           <p className="text-[11.5px] text-ink-muted">
                             Left chest, 30 mm wide
                           </p>
@@ -291,7 +334,9 @@ export default function OrderDetailPage({ id: propId }: { id?: string } = {}) {
                   </p>
                 </div>
                 <div>
-                  <p className="text-[11.5px] text-ink-muted">Transaction reference</p>
+                  <p className="text-[11.5px] text-ink-muted">
+                    Transaction reference
+                  </p>
                   <p className="mt-0.5 font-mono text-[12.5px] text-ink">
                     {order.transactionRef ?? "—"}
                   </p>
@@ -307,18 +352,22 @@ export default function OrderDetailPage({ id: propId }: { id?: string } = {}) {
               {order.couponCode && (
                 <div className="flex items-center gap-2 rounded-md border border-brand-100 bg-brand-50 px-3 py-2 text-[12.5px] text-brand-700">
                   <BadgeCheck className="h-4 w-4" />
-                  Coupon <span className="font-mono font-semibold">{order.couponCode}</span> applied —
-                  {formatPKR(order.discount)} discount
+                  Coupon{" "}
+                  <span className="font-mono font-semibold">
+                    {order.couponCode}
+                  </span>{" "}
+                  applied —{formatPKR(order.discount)} discount
                 </div>
               )}
 
               {order.paymentMethod === "cod" && (
                 <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-[12.5px] text-amber-800">
-                  Cash on Delivery — the courier will collect {formatPKR(order.total)} in cash.
+                  Cash on Delivery — the courier will collect{" "}
+                  {formatPKR(order.total)} in cash.
                   {order.engraving && (
                     <span className="mt-1 block font-medium">
-                      Note: this order has engraving but was placed as COD. Engraved orders should
-                      use advance payment.
+                      Note: this order has engraving but was placed as COD.
+                      Engraved orders should use advance payment.
                     </span>
                   )}
                 </div>
@@ -331,13 +380,20 @@ export default function OrderDetailPage({ id: propId }: { id?: string } = {}) {
                       <CreditCard className="h-4 w-4" />
                     </div>
                     <div>
-                      <p className="text-[13px] font-medium text-ink">Payment proof submitted</p>
+                      <p className="text-[13px] font-medium text-ink">
+                        Payment proof submitted
+                      </p>
                       <p className="text-[11.5px] text-ink-muted">
-                        {submission.transactionRef} · {formatDateTime(submission.submittedAt)}
+                        {submission.transactionRef} ·{" "}
+                        {formatDateTime(submission.submittedAt)}
                       </p>
                     </div>
                   </div>
-                  <Button variant="outline" size="sm" onClick={() => setProofOpen(true)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setProofOpen(true)}
+                  >
                     <ImageIcon className="h-3.5 w-3.5" />
                     View proof
                   </Button>
@@ -348,18 +404,25 @@ export default function OrderDetailPage({ id: propId }: { id?: string } = {}) {
 
           <Card>
             <CardHeader>
-              <h2 className="text-[15px] font-semibold text-ink">Internal notes</h2>
+              <h2 className="text-[15px] font-semibold text-ink">
+                Internal notes
+              </h2>
               <p className="text-[12.5px] text-ink-muted">
                 Only visible to your team — never shown to the customer.
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
               {order.internalNotes.length === 0 ? (
-                <p className="text-[13px] text-ink-muted">No notes on this order yet.</p>
+                <p className="text-[13px] text-ink-muted">
+                  No notes on this order yet.
+                </p>
               ) : (
                 <div className="space-y-2">
                   {order.internalNotes.map((item) => (
-                    <div key={item.id} className="rounded-md border border-line bg-surface-muted/60 p-3">
+                    <div
+                      key={item.id}
+                      className="rounded-md border border-line bg-surface-muted/60 p-3"
+                    >
                       <p className="text-[13px] text-ink">{item.text}</p>
                       <p className="mt-1 text-[11.5px] text-ink-muted">
                         {item.by} · {formatDateTime(item.at)}
@@ -379,10 +442,14 @@ export default function OrderDetailPage({ id: propId }: { id?: string } = {}) {
                 <Button
                   className="self-start"
                   disabled={!note.trim()}
-                  onClick={() => {
-                    addOrderNote(order.id, note.trim());
-                    setNote("");
-                    toast({ title: "Note added" });
+                  onClick={async () => {
+                    try {
+                      await addOrderNote(order.id, note.trim());
+                      setNote("");
+                      toast({ title: "Note added" });
+                    } catch {
+                      return false;
+                    }
                   }}
                 >
                   <MessageSquare className="h-4 w-4" />
@@ -396,16 +463,23 @@ export default function OrderDetailPage({ id: propId }: { id?: string } = {}) {
         <div className="space-y-5">
           <Card>
             <CardHeader>
-              <h2 className="text-[15px] font-semibold text-ink">Order summary</h2>
+              <h2 className="text-[15px] font-semibold text-ink">
+                Order summary
+              </h2>
             </CardHeader>
             <CardContent className="space-y-2.5">
               {totals.map((row) => (
-                <div key={row.label} className="flex items-center justify-between text-[13px]">
+                <div
+                  key={row.label}
+                  className="flex items-center justify-between text-[13px]"
+                >
                   <span className="text-ink-muted">{row.label}</span>
                   <span
                     className={cn(
                       "font-medium tabular",
-                      row.label === "Discount" && row.value !== 0 ? "text-emerald-700" : "text-ink",
+                      row.label === "Discount" && row.value !== 0
+                        ? "text-emerald-700"
+                        : "text-ink",
                     )}
                   >
                     {formatPKR(row.value)}
@@ -413,7 +487,9 @@ export default function OrderDetailPage({ id: propId }: { id?: string } = {}) {
                 </div>
               ))}
               <div className="mt-2 flex items-center justify-between border-t border-line pt-3">
-                <span className="text-[14px] font-semibold text-ink">Total</span>
+                <span className="text-[14px] font-semibold text-ink">
+                  Total
+                </span>
                 <span className="text-[17px] font-semibold text-ink tabular">
                   {formatPKR(order.total)}
                 </span>
@@ -429,9 +505,13 @@ export default function OrderDetailPage({ id: propId }: { id?: string } = {}) {
               <div className="flex items-center gap-3">
                 <Avatar name={order.customerName} size="lg" />
                 <div className="min-w-0">
-                  <p className="text-[13.5px] font-semibold text-ink">{order.customerName}</p>
+                  <p className="text-[13.5px] font-semibold text-ink">
+                    {order.customerName}
+                  </p>
                   <p className="text-[12px] text-ink-muted">
-                    {order.customerType === "registered" ? "Registered customer" : "Guest checkout"}
+                    {order.customerType === "registered"
+                      ? "Registered customer"
+                      : "Guest checkout"}
                     {customer ? ` · ${customer.city}` : ""}
                   </p>
                 </div>
@@ -454,7 +534,9 @@ export default function OrderDetailPage({ id: propId }: { id?: string } = {}) {
               </div>
               {customer && (
                 <Button variant="outline" size="sm" className="w-full" asChild>
-                  <Link href={`/customers/${customer.id}`}>View customer profile</Link>
+                  <Link href={`/customers/${customer.id}`}>
+                    View customer profile
+                  </Link>
                 </Button>
               )}
             </CardContent>
@@ -462,21 +544,30 @@ export default function OrderDetailPage({ id: propId }: { id?: string } = {}) {
 
           <Card>
             <CardHeader>
-              <h2 className="text-[15px] font-semibold text-ink">Shipping address</h2>
+              <h2 className="text-[15px] font-semibold text-ink">
+                Shipping address
+              </h2>
             </CardHeader>
             <CardContent>
               <div className="flex gap-3">
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-ink-muted" />
                 <div className="text-[13px] leading-relaxed text-ink-soft">
-                  <p className="font-medium text-ink">{order.shippingAddress.recipient}</p>
+                  <p className="font-medium text-ink">
+                    {order.shippingAddress.recipient}
+                  </p>
                   <p>{order.shippingAddress.line1}</p>
-                  {order.shippingAddress.line2 && <p>{order.shippingAddress.line2}</p>}
+                  {order.shippingAddress.line2 && (
+                    <p>{order.shippingAddress.line2}</p>
+                  )}
                   <p>
-                    {order.shippingAddress.city}, {order.shippingAddress.province}{" "}
+                    {order.shippingAddress.city},{" "}
+                    {order.shippingAddress.province}{" "}
                     {order.shippingAddress.postcode}
                   </p>
                   <p>{order.shippingAddress.country}</p>
-                  <p className="mt-1 text-ink-muted">{order.shippingAddress.phone}</p>
+                  <p className="mt-1 text-ink-muted">
+                    {order.shippingAddress.phone}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -484,7 +575,9 @@ export default function OrderDetailPage({ id: propId }: { id?: string } = {}) {
 
           <Card>
             <CardHeader>
-              <h2 className="text-[15px] font-semibold text-ink">Courier & tracking</h2>
+              <h2 className="text-[15px] font-semibold text-ink">
+                Courier & tracking
+              </h2>
             </CardHeader>
             <CardContent className="space-y-3.5">
               <div>
@@ -515,12 +608,16 @@ export default function OrderDetailPage({ id: propId }: { id?: string } = {}) {
               <Button
                 className="w-full"
                 variant="outline"
-                onClick={() => {
-                  setOrderCourier(order.id, courier, tracking);
-                  toast({
-                    title: "Courier updated",
-                    description: `${courier} · ${tracking || "no tracking number"}`,
-                  });
+                onClick={async () => {
+                  try {
+                    await setOrderCourier(order.id, courier, tracking);
+                    toast({
+                      title: "Courier updated",
+                      description: `${courier} · ${tracking || "no tracking number"}`,
+                    });
+                  } catch {
+                    return false;
+                  }
                 }}
               >
                 <Save className="h-4 w-4" />
@@ -537,22 +634,33 @@ export default function OrderDetailPage({ id: propId }: { id?: string } = {}) {
 
           <Card>
             <CardHeader>
-              <h2 className="text-[15px] font-semibold text-ink">Status history</h2>
+              <h2 className="text-[15px] font-semibold text-ink">
+                Status history
+              </h2>
             </CardHeader>
             <CardContent>
               <ol className="relative space-y-4 border-l border-line pl-5">
                 {[...order.timeline].reverse().map((event, index) => (
-                  <li key={`${event.status}-${event.at}-${index}`} className="relative">
+                  <li
+                    key={`${event.status}-${event.at}-${index}`}
+                    className="relative"
+                  >
                     <span
                       className={cn(
                         "absolute -left-[26px] top-1 h-2.5 w-2.5 rounded-full ring-4 ring-surface",
                         index === 0 ? "bg-brand-600" : "bg-navy-200",
                       )}
                     />
-                    <p className="text-[12.5px] font-semibold text-ink">{event.label}</p>
-                    <p className="text-[11.5px] text-ink-muted">{formatDateTime(event.at)}</p>
+                    <p className="text-[12.5px] font-semibold text-ink">
+                      {event.label}
+                    </p>
+                    <p className="text-[11.5px] text-ink-muted">
+                      {formatDateTime(event.at)}
+                    </p>
                     {event.note && (
-                      <p className="mt-0.5 text-[12px] text-ink-soft">{event.note}</p>
+                      <p className="mt-0.5 text-[12px] text-ink-soft">
+                        {event.note}
+                      </p>
                     )}
                   </li>
                 ))}
@@ -564,7 +672,9 @@ export default function OrderDetailPage({ id: propId }: { id?: string } = {}) {
             <CardContent className="flex items-center gap-3 p-4">
               <Package className="h-4.5 w-4.5 text-ink-muted" />
               <div className="text-[12px] text-ink-muted">
-                <p className="text-[12.5px] font-medium text-ink">Warehouse: Lahore (Kot Lakhpat)</p>
+                <p className="text-[12.5px] font-medium text-ink">
+                  Warehouse: Lahore (Kot Lakhpat)
+                </p>
                 <p>Same-day dispatch for orders confirmed before 3 PM.</p>
               </div>
             </CardContent>

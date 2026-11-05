@@ -25,3 +25,9 @@ out
 *.sln
 *.sw?
 .vite-source-tags.js
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
