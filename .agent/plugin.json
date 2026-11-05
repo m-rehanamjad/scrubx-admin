@@ -1,0 +1,11 @@
+{
+  "name": "scrubx-fullstack-admin",
+  "displayName": "ScrubX Full-Stack Admin Architecture",
+  "description": "Production architecture skills for ScrubX: Better Auth authentication, Supabase PostgreSQL database, ImageKit media storage, and Next.js App Router best practices.",
+  "version": "1.0.0",
+  "suggestedPrompts": [
+    "Set up Better Auth session management and middleware route protection",
+    "Apply Supabase PostgreSQL schema with Drizzle ORM and run migrations",
+    "Configure ImageKit for product photo and payment proof uploads"
+  ]
+}
