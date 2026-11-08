@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "drizzle": {
+      "source": "lobehub/lobehub",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/drizzle/SKILL.md",
+      "computedHash": "a51a3da4e421ae171d1b3aea0953cd63241b48a5f2fff59ad7ed0f6ff6d9a459"
+    },
+    "nextjs-api-routes": {
+      "source": "venture-formations/aiprodaily",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/nextjs-api-routes/SKILL.md",
+      "computedHash": "556b69ccaa669792753041a5d6755f8bb3e0bbbd445bc1e1e90d446d34f200df"
+    },
+    "nextjs-backend-developer": {
+      "source": "artsmc/codex-agentic",
+      "sourceType": "github",
+      "skillPath": "skills/nextjs-backend-developer/SKILL.md",
+      "computedHash": "78e72506d8e13c9667140aeadb1bfb68bf3894a652b5415da705ed567ce23fdb"
+    },
+    "nextjs-best-practices": {
+      "source": "sickn33/agentic-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/nextjs-best-practices/SKILL.md",
+      "computedHash": "665f3e2cf2a5461089f4d281b68627f60a484101322fa29a9acb0f5356ca7a04"
+    }
+  }
+}

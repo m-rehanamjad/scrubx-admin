@@ -1,8 +1,9 @@
 'use client';
 
 import { useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Pencil, Trash2, Archive, Layers, Palette } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -20,20 +21,28 @@ import { ProductStatusBadge } from "../components/shared/status-badges";
 import { ConfirmDialog } from "../components/shared/confirm-dialog";
 import { EmptyState } from "../components/shared/empty-state";
 import { useToast } from "../components/ui/toast";
-import { useStore } from "../data/store";
 import { formatDate, formatPKR } from "../lib/format";
 import { cn } from "../lib/utils";
+import type { Product, Category } from "../lib/types";
+import { deleteProductAction, archiveProductAction } from "../actions/products";
 
-export default function ProductViewPage({ id: propId }: { id?: string } = {}) {
-  const routeParams = useParams();
-  const id = propId ?? (routeParams?.id as string | undefined);
+interface ProductViewProps {
+  id?: string;
+  initialProduct?: Product;
+  initialCategories?: Category[];
+}
+
+export default function ProductViewPage({
+  id: propId,
+  initialProduct,
+  initialCategories = [],
+}: ProductViewProps) {
   const router = useRouter();
-  const { state, deleteProduct, setProductStatus } = useStore();
   const { toast } = useToast();
   const [activeImage, setActiveImage] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const product = useMemo(() => state.products.find((p) => p.id === id), [state.products, id]);
+  const product = initialProduct;
 
   if (!product) {
     return (
@@ -49,9 +58,9 @@ export default function ProductViewPage({ id: propId }: { id?: string } = {}) {
     );
   }
 
-  const category = state.categories.find((c) => c.id === product.categoryId);
+  const category = initialCategories.find((c) => c.id === product.categoryId);
   const parent = category?.parentId
-    ? state.categories.find((c) => c.id === category.parentId)
+    ? initialCategories.find((c) => c.id === category.parentId)
     : undefined;
   const images = product.images.length
     ? product.images
@@ -73,6 +82,58 @@ export default function ProductViewPage({ id: propId }: { id?: string } = {}) {
     { label: "Variants", value: `${product.variants.length} (${product.variants.filter((v) => v.active).length} active)` },
   ];
 
+  const handleArchive = async () => {
+    try {
+      const res = await archiveProductAction({ id: product.id });
+      if (res.success) {
+        toast({
+          title: "Product archived",
+          description: `${product.name} was archived.`,
+          variant: "info",
+        });
+        router.refresh();
+      } else {
+        toast({
+          title: "Failed to archive product",
+          description: res.error || "Could not archive product.",
+          variant: "error",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error archiving product",
+        description: err.message,
+        variant: "error",
+      });
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      const res = await deleteProductAction({ id: product.id });
+      if (res.success) {
+        toast({
+          title: "Product deleted",
+          description: `${product.name} was removed.`,
+          variant: "error",
+        });
+        router.push("/products");
+      } else {
+        toast({
+          title: "Failed to delete product",
+          description: res.error || "Could not delete product.",
+          variant: "error",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error deleting product",
+        description: err.message,
+        variant: "error",
+      });
+    }
+  };
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -87,7 +148,7 @@ export default function ProductViewPage({ id: propId }: { id?: string } = {}) {
                 Back
               </Link>
             </Button>
-            <Button variant="outline" onClick={() => setProductStatus(product.id, "archived")}>
+            <Button variant="outline" onClick={handleArchive}>
               <Archive className="h-4 w-4" />
               Archive
             </Button>
@@ -108,12 +169,17 @@ export default function ProductViewPage({ id: propId }: { id?: string } = {}) {
       <div className="grid gap-5 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
         <div className="space-y-4">
           <Card className="overflow-hidden">
-            <div className="aspect-square w-full overflow-hidden bg-surface-muted">
-              <img
-                src={images[activeImage]?.url}
-                alt={images[activeImage]?.alt ?? product.name}
-                className="h-full w-full object-cover"
-              />
+            <div className="relative aspect-square w-full overflow-hidden bg-surface-muted">
+              {images[activeImage]?.url && (
+                <Image
+                  src={images[activeImage].url}
+                  alt={images[activeImage]?.alt ?? product.name}
+                  fill
+                  priority
+                  sizes="(max-width: 1024px) 100vw, 420px"
+                  className="object-cover"
+                />
+              )}
             </div>
             {images.length > 1 && (
               <div className="flex gap-2 overflow-x-auto scrollbar-thin p-3">
@@ -122,13 +188,13 @@ export default function ProductViewPage({ id: propId }: { id?: string } = {}) {
                     key={image.id}
                     onClick={() => setActiveImage(index)}
                     className={cn(
-                      "h-16 w-16 shrink-0 overflow-hidden rounded-md border transition-all",
+                      "relative h-16 w-16 shrink-0 overflow-hidden rounded-md border transition-all",
                       index === activeImage
                         ? "border-brand-500 ring-2 ring-brand-100"
                         : "border-line hover:border-navy-300",
                     )}
                   >
-                    <img src={image.url} alt={image.alt} className="h-full w-full object-cover" />
+                    <Image src={image.url} alt={image.alt} fill sizes="64px" className="object-cover" />
                   </button>
                 ))}
               </div>
@@ -286,12 +352,15 @@ export default function ProductViewPage({ id: propId }: { id?: string } = {}) {
                     </div>
                     <div className="flex gap-1.5">
                       {(colorImages.length ? colorImages : shared).slice(0, 4).map((image) => (
-                        <img
-                          key={image.id}
-                          src={image.url}
-                          alt={image.alt}
-                          className="h-11 w-11 rounded-md border border-line object-cover"
-                        />
+                        <div key={image.id} className="relative h-11 w-11 shrink-0 overflow-hidden rounded-md border border-line">
+                          <Image
+                            src={image.url}
+                            alt={image.alt}
+                            fill
+                            sizes="44px"
+                            className="object-cover"
+                          />
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -315,11 +384,7 @@ export default function ProductViewPage({ id: propId }: { id?: string } = {}) {
         description={`“${product.name}” and its ${product.variants.length} variants will be permanently removed.`}
         confirmLabel="Delete product"
         destructive
-        onConfirm={() => {
-          deleteProduct(product.id);
-          toast({ title: "Product deleted", variant: "error" });
-          router.push("/products");
-        }}
+        onConfirm={handleDelete}
       />
     </div>
   );

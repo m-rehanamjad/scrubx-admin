@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS ba_user (
   email text NOT NULL UNIQUE,
   email_verified boolean NOT NULL DEFAULT false,
   image text,
-  role text NOT NULL DEFAULT 'customer' CHECK (role IN ('admin', 'customer')),
+  role text NOT NULL DEFAULT 'STAFF' CHECK (role IN ('SUPER_ADMIN', 'ADMIN', 'STAFF', 'admin', 'customer')),
   banned boolean DEFAULT false,
   ban_reason text,
   ban_expires timestamptz,

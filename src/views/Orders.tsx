@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowUpRight,
   CircleDollarSign,
@@ -44,21 +45,27 @@ import { EmptyState } from "../components/shared/empty-state";
 import { Pagination } from "../components/shared/pagination";
 import { Avatar } from "../components/shared/thumb";
 import { OrderStatusBadge, PaymentStatusBadge } from "../components/shared/status-badges";
-import { useSimulatedLoading } from "../components/shared/use-simulated-loading";
-import { TableSkeleton } from "../components/ui/skeleton";
 import { useToast } from "../components/ui/toast";
-import { useStore } from "../data/store";
-import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "../data/mock";
+import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL } from "../lib/constants";
 import { formatDate, formatPKR } from "../lib/format";
 import { cn } from "../lib/utils";
-import type { OrderStatus, PaymentMethodId, PaymentStatus } from "../lib/types";
+import type { Order, OrderStatus, PaymentMethodId, PaymentStatus } from "../lib/types";
+import { updateOrderStatusAction } from "../actions/orders";
 
 type SortKey = "newest" | "oldest" | "total-desc" | "total-asc";
 
-export default function OrdersPage() {
-  const { state, setOrderStatus } = useStore();
+interface OrdersProps {
+  initialOrders?: Order[];
+}
+
+export default function OrdersPage({ initialOrders = [] }: OrdersProps) {
+  const router = useRouter();
   const { toast } = useToast();
-  const loading = useSimulatedLoading(320);
+  const [orders, setOrders] = useState<Order[]>(initialOrders);
+
+  useEffect(() => {
+    setOrders(initialOrders);
+  }, [initialOrders]);
 
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"all" | OrderStatus>("all");
@@ -70,7 +77,7 @@ export default function OrdersPage() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = state.orders.filter((order) => {
+    const list = orders.filter((order) => {
       const matchesQuery =
         !q ||
         order.orderNumber.toLowerCase().includes(q) ||
@@ -99,7 +106,7 @@ export default function OrdersPage() {
       }
     });
     return sorted;
-  }, [state.orders, query, status, paymentStatus, method, sort]);
+  }, [orders, query, status, paymentStatus, method, sort]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, pageCount);
@@ -108,13 +115,13 @@ export default function OrdersPage() {
   const stats = [
     {
       label: "All orders",
-      value: state.orders.length,
+      value: orders.length,
       icon: ShoppingBag,
       tone: "navy",
     },
     {
       label: "Needs action",
-      value: state.orders.filter(
+      value: orders.filter(
         (o) =>
           o.status === "awaiting_payment" ||
           o.status === "payment_submitted" ||
@@ -125,7 +132,7 @@ export default function OrdersPage() {
     },
     {
       label: "In fulfilment",
-      value: state.orders.filter(
+      value: orders.filter(
         (o) => o.status === "confirmed" || o.status === "processing" || o.status === "shipped",
       ).length,
       icon: Truck,
@@ -134,7 +141,7 @@ export default function OrdersPage() {
     {
       label: "Revenue",
       value: formatPKR(
-        state.orders
+        orders
           .filter((o) => o.status !== "cancelled" && o.status !== "refunded")
           .reduce((sum, o) => sum + o.total, 0),
       ),
@@ -152,22 +159,44 @@ export default function OrdersPage() {
     "shipped",
     "delivered",
     "cancelled",
-    "refunded",
   ];
+
+  const handleUpdateStatus = async (orderId: string, orderNumber: string, option: OrderStatus) => {
+    try {
+      const dbStatus = option === "pending_cod" ? "pending" : option;
+      const res = await updateOrderStatusAction({ orderId, status: dbStatus as any });
+      if (res.success) {
+        toast({
+          title: `Order moved to ${ORDER_STATUS_LABEL[option]}`,
+          description: `${orderNumber} updated.`,
+        });
+        router.refresh();
+      } else {
+        toast({
+          title: "Failed to update order status",
+          description: res.error || "Transition not permitted.",
+          variant: "error",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error updating status",
+        description: err.message,
+        variant: "error",
+      });
+    }
+  };
 
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Sales"
+        eyebrow="Operations"
         title="Orders"
-        description="Every order across the store with payment, fulfilment and status controls."
+        description="Review inbound orders, manage payment proofs and push shipments out for delivery."
         actions={
-          <Button variant="outline" asChild>
-            <Link href="/payments">
-              <CircleDollarSign className="h-4 w-4" />
-              Verify payments
-            </Link>
-          </Button>
+          <Badge variant="neutral">
+            PKR {orders.filter((o) => o.status === "delivered").length} delivered this month
+          </Badge>
         }
       />
 
@@ -184,9 +213,9 @@ export default function OrdersPage() {
               <span
                 className={cn(
                   "flex h-9 w-9 items-center justify-center rounded-lg",
-                  stat.tone === "brand" && "bg-brand-50 text-brand-600",
                   stat.tone === "navy" && "bg-navy-50 text-navy-600",
                   stat.tone === "amber" && "bg-amber-50 text-amber-600",
+                  stat.tone === "brand" && "bg-brand-50 text-brand-600",
                   stat.tone === "violet" && "bg-violet-50 text-violet-600",
                 )}
               >
@@ -199,15 +228,15 @@ export default function OrdersPage() {
 
       <Card>
         <CardContent className="p-0">
-          <div className="flex flex-col gap-3 border-b border-line p-4 xl:flex-row xl:items-center">
+          <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center">
             <SearchInput
               value={query}
               onChange={(value) => {
                 setQuery(value);
                 setPage(1);
               }}
-              placeholder="Search order number, customer or product…"
-              className="w-full xl:max-w-sm"
+              placeholder="Search by order #, customer, phone, item…"
+              className="w-full lg:max-w-xs"
             />
             <div className="flex flex-wrap items-center gap-2">
               <Select
@@ -217,16 +246,17 @@ export default function OrdersPage() {
                   setPage(1);
                 }}
               >
-                <SelectTrigger className="w-[190px]">
-                  <SelectValue />
+                <SelectTrigger className="w-[170px]">
+                  <SelectValue placeholder="All order statuses" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All order statuses</SelectItem>
-                  {statusOptions.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {ORDER_STATUS_LABEL[option]}
+                  <SelectItem value="all">All statuses</SelectItem>
+                  {statusOptions.map((opt) => (
+                    <SelectItem key={opt} value={opt}>
+                      {ORDER_STATUS_LABEL[opt]}
                     </SelectItem>
                   ))}
+                  <SelectItem value="refunded">Refunded</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -237,17 +267,15 @@ export default function OrdersPage() {
                   setPage(1);
                 }}
               >
-                <SelectTrigger className="w-[170px]">
-                  <SelectValue />
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Payment status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All payment statuses</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="submitted">Submitted</SelectItem>
+                  <SelectItem value="all">All payments</SelectItem>
                   <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="submitted">Submitted</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="rejected">Rejected</SelectItem>
-                  <SelectItem value="refunded">Refunded</SelectItem>
-                  <SelectItem value="failed">Failed</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -258,57 +286,41 @@ export default function OrdersPage() {
                   setPage(1);
                 }}
               >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue />
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Payment method" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All payment methods</SelectItem>
-                  {Object.entries(PAYMENT_METHOD_LABEL).map(([key, label]) => (
-                    <SelectItem key={key} value={key}>
-                      {label}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="all">All methods</SelectItem>
+                  <SelectItem value="bank">Bank Transfer</SelectItem>
+                  <SelectItem value="jazzcash">JazzCash</SelectItem>
+                  <SelectItem value="easypaisa">Easypaisa</SelectItem>
+                  <SelectItem value="cod">Cash on Delivery</SelectItem>
                 </SelectContent>
               </Select>
 
-              <Select value={sort} onValueChange={(value) => setSort(value as SortKey)}>
+              <Select
+                value={sort}
+                onValueChange={(value) => setSort(value as SortKey)}
+              >
                 <SelectTrigger className="w-[160px]">
-                  <SelectValue />
+                  <SelectValue placeholder="Sort" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="newest">Newest first</SelectItem>
                   <SelectItem value="oldest">Oldest first</SelectItem>
-                  <SelectItem value="total-desc">Highest value</SelectItem>
-                  <SelectItem value="total-asc">Lowest value</SelectItem>
+                  <SelectItem value="total-desc">Amount: high to low</SelectItem>
+                  <SelectItem value="total-asc">Amount: low to high</SelectItem>
                 </SelectContent>
               </Select>
-
-              {(query || status !== "all" || paymentStatus !== "all" || method !== "all") && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setQuery("");
-                    setStatus("all");
-                    setPaymentStatus("all");
-                    setMethod("all");
-                  }}
-                >
-                  <Filter className="h-3.5 w-3.5" />
-                  Reset
-                </Button>
-              )}
             </div>
           </div>
 
-          {loading ? (
-            <TableSkeleton rows={8} cols={7} />
-          ) : visible.length === 0 ? (
+          {visible.length === 0 ? (
             <EmptyState
               className="m-4"
               icon={<SearchX className="h-5 w-5" />}
               title="No orders found"
-              description="Try clearing the filters or searching for a different order number."
+              description="Try adjusting your filter or search query."
               action={
                 <Button
                   variant="outline"
@@ -344,12 +356,12 @@ export default function OrdersPage() {
                       <TableCell>
                         <Link
                           href={`/orders/${order.id}`}
-                          className="font-mono text-[12.5px] font-medium text-brand-700 hover:underline"
+                          className="font-mono text-[13px] font-semibold text-brand-700 hover:underline"
                         >
                           {order.orderNumber}
                         </Link>
                         <p className="mt-0.5 text-[11.5px] text-ink-muted">
-                          {PAYMENT_METHOD_LABEL[order.paymentMethod]}
+                          {PAYMENT_METHOD_LABEL[order.paymentMethod] || order.paymentMethod}
                         </p>
                       </TableCell>
                       <TableCell>
@@ -398,13 +410,7 @@ export default function OrdersPage() {
                             {statusOptions.map((option) => (
                               <DropdownMenuItem
                                 key={option}
-                                onClick={() => {
-                                  setOrderStatus(order.id, option);
-                                  toast({
-                                    title: `Order moved to ${ORDER_STATUS_LABEL[option]}`,
-                                    description: `${order.orderNumber} updated.`,
-                                  });
-                                }}
+                                onClick={() => handleUpdateStatus(order.id, order.orderNumber, option)}
                               >
                                 Mark as {ORDER_STATUS_LABEL[option]}
                               </DropdownMenuItem>

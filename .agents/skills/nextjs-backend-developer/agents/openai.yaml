@@ -1,0 +1,4 @@
+interface:
+  display_name: "Nextjs Backend Developer"
+  short_description: "when writing backend code inside of nextjs, ie api, service i..."
+  default_prompt: "Use $nextjs-backend-developer for this workflow."

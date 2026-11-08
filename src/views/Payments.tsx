@@ -1,7 +1,9 @@
 'use client';
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
   CircleDollarSign,
@@ -32,38 +34,50 @@ import { EmptyState } from "../components/shared/empty-state";
 import { SearchInput } from "../components/shared/search-input";
 import { Avatar } from "../components/shared/thumb";
 import { useToast } from "../components/ui/toast";
-import { useStore } from "../data/store";
-import { PAYMENT_METHOD_LABEL } from "../data/mock";
+import { PAYMENT_METHOD_LABEL } from "../lib/constants";
 import { formatDateTime, formatPKR } from "../lib/format";
 import { cn } from "../lib/utils";
+import type { PaymentSubmission } from "../lib/types";
+import { approvePaymentAction, rejectPaymentAction } from "../actions/payments";
 
-export default function PaymentsPage() {
-  const { state, approvePayment, rejectPayment } = useStore();
+interface PaymentsProps {
+  initialSubmissions?: PaymentSubmission[];
+}
+
+export default function PaymentsPage({ initialSubmissions = [] }: PaymentsProps) {
+  const router = useRouter();
   const { toast } = useToast();
+  const [submissions, setSubmissions] = useState<PaymentSubmission[]>(initialSubmissions);
+
+  useEffect(() => {
+    setSubmissions(initialSubmissions);
+  }, [initialSubmissions]);
+
   const [query, setQuery] = useState("");
   const [proofTarget, setProofTarget] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const submissions = useMemo(
-    () => [...state.paymentSubmissions].sort((a, b) => +new Date(b.submittedAt) - +new Date(a.submittedAt)),
-    [state.paymentSubmissions],
+  const sortedSubmissions = useMemo(
+    () => [...submissions].sort((a, b) => +new Date(b.submittedAt) - +new Date(a.submittedAt)),
+    [submissions],
   );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return submissions;
-    return submissions.filter(
+    if (!q) return sortedSubmissions;
+    return sortedSubmissions.filter(
       (s) =>
         s.orderNumber.toLowerCase().includes(q) ||
         s.customerName.toLowerCase().includes(q) ||
         s.transactionRef.toLowerCase().includes(q),
     );
-  }, [submissions, query]);
+  }, [sortedSubmissions, query]);
 
-  const pending = submissions.filter((s) => s.status === "submitted");
-  const approved = submissions.filter((s) => s.status === "approved");
-  const rejected = submissions.filter((s) => s.status === "rejected");
+  const pending = filtered.filter((s) => s.status === "submitted");
+  const approved = filtered.filter((s) => s.status === "approved");
+  const rejected = filtered.filter((s) => s.status === "rejected");
 
   const stats = [
     {
@@ -96,8 +110,73 @@ export default function PaymentsPage() {
     },
   ];
 
-  const proof = state.paymentSubmissions.find((s) => s.id === proofTarget);
-  const rejectSubmission = state.paymentSubmissions.find((s) => s.id === rejectTarget);
+  const proof = submissions.find((s) => s.id === proofTarget);
+  const rejectSubmission = submissions.find((s) => s.id === rejectTarget);
+
+  const handleApprove = async (id: string) => {
+    setIsSubmitting(true);
+    try {
+      const res = await approvePaymentAction({ paymentId: id, action: "approve" });
+      if (res.success) {
+        toast({
+          title: "Payment approved",
+          description: "Order marked paid and stock committed.",
+        });
+        router.refresh();
+      } else {
+        toast({
+          title: "Failed to approve payment",
+          description: res.error || "An error occurred.",
+          variant: "error",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error approving payment",
+        description: err.message,
+        variant: "error",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!rejectTarget || !rejectReason.trim()) return;
+    setIsSubmitting(true);
+    try {
+      const res = await rejectPaymentAction({
+        paymentId: rejectTarget,
+        action: "reject",
+        rejectionReason: rejectReason.trim(),
+      });
+
+      if (res.success) {
+        toast({
+          title: "Payment rejected",
+          description: "The payment proof has been rejected.",
+          variant: "error",
+        });
+        setRejectTarget(null);
+        setRejectReason("");
+        router.refresh();
+      } else {
+        toast({
+          title: "Failed to reject payment",
+          description: res.error || "An error occurred.",
+          variant: "error",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error rejecting payment",
+        description: err.message,
+        variant: "error",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -122,15 +201,15 @@ export default function PaymentsPage() {
                 <p className="mt-1.5 text-[20px] font-semibold leading-none text-ink tabular">
                   {stat.value}
                 </p>
-                <p className="mt-2 text-[11.5px] text-ink-muted">{stat.hint}</p>
+                <p className="mt-1 text-[11.5px] text-ink-muted">{stat.hint}</p>
               </div>
               <span
                 className={cn(
-                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
-                  stat.tone === "brand" && "bg-brand-50 text-brand-600",
-                  stat.tone === "navy" && "bg-navy-50 text-navy-600",
+                  "flex h-9 w-9 items-center justify-center rounded-lg",
                   stat.tone === "amber" && "bg-amber-50 text-amber-600",
+                  stat.tone === "brand" && "bg-brand-50 text-brand-600",
                   stat.tone === "rose" && "bg-rose-50 text-rose-600",
+                  stat.tone === "navy" && "bg-navy-50 text-navy-600",
                 )}
               >
                 <stat.icon className="h-4.5 w-4.5" />
@@ -145,72 +224,69 @@ export default function PaymentsPage() {
           <Tabs defaultValue="pending">
             <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
               <TabsList>
-                <TabsTrigger value="pending">Pending ({pending.length})</TabsTrigger>
-                <TabsTrigger value="all">All ({submissions.length})</TabsTrigger>
-                <TabsTrigger value="approved">Approved</TabsTrigger>
-                <TabsTrigger value="rejected">Rejected</TabsTrigger>
+                <TabsTrigger value="pending">
+                  <Clock className="h-3.5 w-3.5" />
+                  Awaiting review ({pending.length})
+                </TabsTrigger>
+                <TabsTrigger value="approved">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Approved ({approved.length})
+                </TabsTrigger>
+                <TabsTrigger value="rejected">
+                  <XCircle className="h-3.5 w-3.5" />
+                  Rejected ({rejected.length})
+                </TabsTrigger>
               </TabsList>
+
               <SearchInput
                 value={query}
                 onChange={setQuery}
-                placeholder="Search order, customer or transaction ID…"
-                className="w-full lg:w-72"
+                placeholder="Search by order #, customer or reference…"
+                className="w-full sm:w-72"
               />
             </div>
 
-            <TabsContent value="pending" className="mt-0">
+            <TabsContent value="pending" className="p-0">
               <SubmissionList
-                items={filtered.filter((s) => s.status === "submitted")}
-                onViewProof={setProofTarget}
-                onApprove={(id) => {
-                  approvePayment(id);
-                  toast({
-                    title: "Payment approved",
-                    description: "The order has been confirmed automatically.",
-                  });
-                }}
-                onReject={(id) => {
-                  setRejectTarget(id);
-                  setRejectReason("");
-                }}
+                items={pending}
+                onViewProof={(id) => setProofTarget(id)}
+                onApprove={handleApprove}
+                onReject={(id) => setRejectTarget(id)}
                 emptyState={
                   <EmptyState
                     className="m-4"
-                    icon={<CheckCircle2 className="h-5 w-5" />}
-                    title="Nothing awaiting verification"
-                    description="New payment proofs submitted by customers will appear here."
+                    icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
+                    title="Queue is all clear"
+                    description="No payments currently waiting for verification."
                   />
                 }
               />
             </TabsContent>
-            <TabsContent value="all" className="mt-0">
+
+            <TabsContent value="approved" className="p-0">
               <SubmissionList
-                items={filtered}
-                onViewProof={setProofTarget}
+                items={approved}
+                onViewProof={(id) => setProofTarget(id)}
                 emptyState={
                   <EmptyState
                     className="m-4"
-                    icon={<SearchX className="h-5 w-5" />}
-                    title="No submissions found"
+                    title="No approved payments yet"
+                    description="Approved customer proofs will be catalogued here."
                   />
                 }
               />
             </TabsContent>
-            <TabsContent value="approved" className="mt-0">
+
+            <TabsContent value="rejected" className="p-0">
               <SubmissionList
-                items={filtered.filter((s) => s.status === "approved")}
-                onViewProof={setProofTarget}
+                items={rejected}
+                onViewProof={(id) => setProofTarget(id)}
                 emptyState={
-                  <EmptyState className="m-4" title="No approved payments yet" />
-                }
-              />
-            </TabsContent>
-            <TabsContent value="rejected" className="mt-0">
-              <SubmissionList
-                items={filtered.filter((s) => s.status === "rejected")}
-                onViewProof={setProofTarget}
-                emptyState={
-                  <EmptyState className="m-4" title="No rejected payments" />
+                  <EmptyState
+                    className="m-4"
+                    title="No rejected payments"
+                    description="Submissions flagged as mismatched or invalid will appear here."
+                  />
                 }
               />
             </TabsContent>
@@ -218,49 +294,92 @@ export default function PaymentsPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={Boolean(proofTarget)} onOpenChange={(open) => !open && setProofTarget(null)}>
-        <DialogContent className="max-w-md">
+      {/* Proof Preview Dialog */}
+      <Dialog open={Boolean(proof)} onOpenChange={(open) => !open && setProofTarget(null)}>
+        <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>Payment proof</DialogTitle>
+            <DialogTitle>Payment receipt · {proof?.orderNumber}</DialogTitle>
             <DialogDescription>
-              {proof?.orderNumber} · {proof?.transactionRef}
+              Submitted {proof && formatDateTime(proof.submittedAt)} · Ref: {proof?.transactionRef}
             </DialogDescription>
           </DialogHeader>
-          <DialogBody>
-            {proof && (
-              <img
-                src={proof.proofUrl}
-                alt="Payment proof screenshot"
-                className="w-full rounded-lg border border-line"
-              />
-            )}
+          <DialogBody className="space-y-4">
+            <div className="relative min-h-[220px] max-h-[460px] overflow-hidden rounded-lg border border-line bg-surface-muted flex items-center justify-center">
+              {proof?.proofUrl ? (
+                <Image
+                  src={proof.proofUrl}
+                  alt={`Proof for ${proof.orderNumber}`}
+                  width={600}
+                  height={460}
+                  unoptimized
+                  className="max-h-[460px] w-auto max-w-full object-contain mx-auto"
+                />
+              ) : (
+                <div className="flex h-48 items-center justify-center text-ink-muted">
+                  No image provided
+                </div>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-[12.5px]">
+              <div>
+                <p className="text-ink-muted">Customer</p>
+                <p className="font-medium text-ink">{proof?.customerName}</p>
+                <p className="text-ink-muted">{proof?.customerPhone}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-ink-muted">Claimed amount</p>
+                <p className="text-[17px] font-semibold text-ink tabular">
+                  {proof && formatPKR(proof.amount)}
+                </p>
+              </div>
+            </div>
           </DialogBody>
           <DialogFooter>
             <Button variant="outline" onClick={() => setProofTarget(null)}>
               Close
             </Button>
-            {proof && (
-              <Button asChild>
-                <Link href={`/orders/${proof.orderId}`}>Open order</Link>
-              </Button>
+            {proof?.status === "submitted" && (
+              <>
+                <Button
+                  variant="danger-outline"
+                  onClick={() => {
+                    setProofTarget(null);
+                    setRejectTarget(proof.id);
+                  }}
+                >
+                  Reject
+                </Button>
+                <Button
+                  onClick={() => {
+                    handleApprove(proof.id);
+                    setProofTarget(null);
+                  }}
+                >
+                  Approve payment
+                </Button>
+              </>
             )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(rejectTarget)} onOpenChange={(open) => !open && setRejectTarget(null)}>
+      {/* Reject Reason Dialog */}
+      <Dialog
+        open={Boolean(rejectTarget)}
+        onOpenChange={(open) => !open && setRejectTarget(null)}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Reject payment</DialogTitle>
+            <DialogTitle>Reject payment proof</DialogTitle>
             <DialogDescription>
-              {rejectSubmission?.orderNumber} · {rejectSubmission && formatPKR(rejectSubmission.amount)}
+              {rejectSubmission && `Rejecting proof for ${rejectSubmission.orderNumber}.`}
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="space-y-3">
-            <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-[12.5px] text-amber-800">
-              <FileWarning className="mt-0.5 h-4 w-4 shrink-0" />
-              Rejecting returns the order to “Awaiting Payment” and notifies the customer to send a
-              fresh transfer.
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-[12.5px] text-amber-800">
+              <FileWarning className="mb-1 h-4 w-4" />
+              Explain why this receipt cannot be verified (e.g. incorrect amount, unreadable photo,
+              invalid reference).
             </div>
             <div>
               <Label htmlFor="reject-reason">Reason for rejection</Label>
@@ -269,8 +388,8 @@ export default function PaymentsPage() {
                 rows={3}
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="e.g. Transaction reference does not match the amount"
-                className="mt-1.5"
+                placeholder="e.g. Transaction ID was not found in our JazzCash merchant portal."
+                className="mt-1"
               />
             </div>
           </DialogBody>
@@ -280,19 +399,10 @@ export default function PaymentsPage() {
             </Button>
             <Button
               variant="danger"
-              disabled={!rejectReason.trim()}
-              onClick={() => {
-                if (!rejectTarget) return;
-                rejectPayment(rejectTarget, rejectReason.trim());
-                toast({
-                  title: "Payment rejected",
-                  description: "The customer has been asked to re-submit the payment.",
-                  variant: "error",
-                });
-                setRejectTarget(null);
-              }}
+              disabled={!rejectReason.trim() || isSubmitting}
+              onClick={handleReject}
             >
-              Reject payment
+              {isSubmitting ? "Rejecting..." : "Reject payment"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -308,7 +418,7 @@ function SubmissionList({
   onReject,
   emptyState,
 }: {
-  items: ReturnType<typeof useStore>["state"]["paymentSubmissions"];
+  items: PaymentSubmission[];
   onViewProof: (id: string) => void;
   onApprove?: (id: string) => void;
   onReject?: (id: string) => void;
@@ -325,7 +435,7 @@ function SubmissionList({
             className="group relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-line bg-surface-muted"
             aria-label="View payment proof"
           >
-            <img src={item.proofUrl} alt="Payment proof" className="h-full w-full object-cover" />
+            <Image src={item.proofUrl} alt="Payment proof" fill unoptimized sizes="80px" className="object-cover" />
             <span className="absolute inset-0 flex items-center justify-center bg-navy-900/45 opacity-0 transition-opacity group-hover:opacity-100">
               <Eye className="h-4 w-4 text-white" />
             </span>
@@ -339,7 +449,7 @@ function SubmissionList({
               >
                 {item.orderNumber}
               </Link>
-              <Badge variant="navy">{PAYMENT_METHOD_LABEL[item.method]}</Badge>
+              <Badge variant="navy">{PAYMENT_METHOD_LABEL[item.method] || item.method}</Badge>
               {item.status === "submitted" && <Badge variant="warning">Needs review</Badge>}
               {item.status === "approved" && <Badge variant="success">Approved</Badge>}
               {item.status === "rejected" && <Badge variant="danger">Rejected</Badge>}
@@ -378,7 +488,6 @@ function SubmissionList({
               )}
               {item.status === "submitted" && onReject && (
                 <Button variant="danger-outline" size="sm" onClick={() => onReject(item.id)}>
-                  <XCircle className="h-3.5 w-3.5" />
                   Reject
                 </Button>
               )}

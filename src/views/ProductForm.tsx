@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -48,11 +49,13 @@ import { PageHeader } from "../components/shared/page-header";
 import { ProductStatusBadge } from "../components/shared/status-badges";
 import { ConfirmDialog } from "../components/shared/confirm-dialog";
 import { useToast } from "../components/ui/toast";
-import { useStore } from "../data/store";
-import { COLOR_LIBRARY } from "../data/mock";
+import { ImageUpload, type UploadedMedia } from "../components/shared/image-upload";
+import { deleteMediaAction } from "../actions/media";
+import { COLOR_LIBRARY } from "../lib/constants";
 import { formatPKR } from "../lib/format";
 import { cn, slugify, uid } from "../lib/utils";
-import type { Product, ProductColor, ProductImage, ProductVariant } from "../lib/types";
+import type { Product, ProductColor, ProductImage, ProductVariant, Category } from "../lib/types";
+import { createProductAction, updateProductAction } from "../actions/products";
 
 const APPAREL_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "3XL"];
 const SHOE_SIZES = ["36", "37", "38", "39", "40", "41", "42"];
@@ -99,18 +102,25 @@ const colorCode = (name: string) => name.split(" ")[0].slice(0, 3).toUpperCase()
 const sizeCode = (size: string) =>
   size.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3) || "OS";
 
-export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
+interface ProductFormProps {
+  id?: string;
+  initialProduct?: Product;
+  initialCategories?: Category[];
+}
+
+export default function ProductFormPage({
+  id: propId,
+  initialProduct,
+  initialCategories = [],
+}: ProductFormProps = {}) {
   const routeParams = useParams();
   const id = propId ?? (routeParams?.id as string | undefined);
   const router = useRouter();
-  const { state, saveProduct } = useStore();
   const { toast } = useToast();
   const isEdit = Boolean(id);
 
-  const existing = useMemo(
-    () => (id ? state.products.find((p) => p.id === id) : undefined),
-    [id, state.products],
-  );
+  const existing = initialProduct;
+  const categories = initialCategories;
 
   const [colors, setColors] = useState<ProductColor[]>(existing?.colors ?? []);
   const [images, setImages] = useState<ProductImage[]>(existing?.images ?? []);
@@ -185,7 +195,7 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
     }
   }, [nameValue, slugTouched, setValue]);
 
-  const leafCategories = state.categories.filter((c) => c.parentId || c.status === "active");
+  const leafCategories = categories.filter((c) => c.parentId || c.status === "active");
 
   const addColor = () => {
     const name = colorDraft.name.trim();
@@ -313,12 +323,13 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
     toast({ title: "Variant added", description: `${variant.name} added to the product.` });
   };
 
-  const addImage = (url: string, colorId: string | null) => {
+  const addImage = (url: string, colorId: string | null, fileId?: string) => {
     const trimmed = url.trim();
     if (!trimmed) return;
     const image: ProductImage = {
       id: uid("img"),
       url: trimmed,
+      fileId,
       alt: `${values.name || "Product"} image`,
       colorId,
       isMain: images.length === 0,
@@ -329,6 +340,32 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
     });
     setImageUrl("");
     toast({ title: "Image added" });
+  };
+
+  const addUploadedMedia = (mediaList: UploadedMedia | UploadedMedia[]) => {
+    const list = Array.isArray(mediaList) ? mediaList : [mediaList];
+    if (list.length === 0) return;
+    setImages((prev) => {
+      const newItems: ProductImage[] = list.map((media) => ({
+        id: uid("img"),
+        url: media.url,
+        fileId: media.fileId,
+        alt: media.name || `${values.name || "Product"} image`,
+        colorId:
+          media.colorId !== undefined
+            ? media.colorId
+            : imageColor === "shared"
+              ? null
+              : imageColor,
+        isMain: false,
+      }));
+      const combined = [...prev, ...newItems];
+      return combined.map((img, idx) => (idx === 0 ? { ...img, isMain: true } : img));
+    });
+    toast({
+      title: `${list.length} image${list.length === 1 ? "" : "s"} added`,
+      description: "Uploaded to ImageKit successfully.",
+    });
   };
 
   const moveImage = (imageId: string, direction: -1 | 1) => {
@@ -347,11 +384,17 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
   };
 
   const removeImage = (imageId: string) => {
+    const target = images.find((i) => i.id === imageId);
     setImages((prev) => {
       const next = prev.filter((i) => i.id !== imageId);
       if (next.length && !next.some((i) => i.isMain)) next[0] = { ...next[0], isMain: true };
       return next;
     });
+    if (target?.fileId) {
+      deleteMediaAction(target.fileId).catch((err) => {
+        console.warn("[Failed to delete ImageKit asset]:", err);
+      });
+    }
   };
 
   const buildProduct = (status: Product["status"]): Product => ({
@@ -411,12 +454,117 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
       toast({ title: "Variants need attention", variant: "error" });
       return;
     }
-    saveProduct(buildProduct(status));
-    toast({
-      title: status === "active" ? "Product published" : "Saved as draft",
-      description: `${values.name} has been ${status === "active" ? "published to the store" : "saved as a draft"}.`,
-    });
-    router.push("/products");
+
+    try {
+      if (isEdit && existing) {
+        const res = await updateProductAction({
+          id: existing.id,
+          name: values.name.trim(),
+          slug: values.slug.trim(),
+          description: values.description.trim() || null,
+          categoryId: values.categoryId || null,
+          brand: values.brand.trim() || null,
+          gender: (values.gender as any) || "unisex",
+          material: values.material.trim() || null,
+          status: status as any,
+          isEngravable: values.engraveable,
+          isFeatured: values.featured,
+          colors: colors.map((c, idx) => ({
+            name: c.name,
+            hexCode: c.hex,
+            sortOrder: idx,
+          })),
+          variants: variants.map((v) => ({
+            name: v.name,
+            sku: v.sku,
+            size: v.size,
+            price: v.price,
+            compareAtPrice: v.compareAtPrice ?? null,
+            stock: v.stock,
+            reorderLevel: v.reorderLevel,
+            isActive: v.active,
+            colorName: v.colorName,
+          })),
+          images: images.map((img, idx) => ({
+            imagekitFileId: img.fileId || `img-${idx}-${Date.now().toString(36)}`,
+            url: img.url,
+            altText: img.alt || values.name,
+            sortOrder: idx,
+          })),
+        });
+
+        if (res.success) {
+          toast({
+            title: "Product updated",
+            description: `${values.name} has been updated.`,
+          });
+          router.push("/products");
+          router.refresh();
+        } else {
+          toast({
+            title: "Failed to update product",
+            description: res.error || "An error occurred.",
+            variant: "error",
+          });
+        }
+      } else {
+        const res = await createProductAction({
+          name: values.name.trim(),
+          slug: values.slug.trim(),
+          description: values.description.trim() || null,
+          categoryId: values.categoryId || null,
+          brand: values.brand.trim() || null,
+          gender: (values.gender as any) || "unisex",
+          material: values.material.trim() || null,
+          status: status as any,
+          isEngravable: values.engraveable,
+          isFeatured: values.featured,
+          colors: colors.map((c, idx) => ({
+            name: c.name,
+            hexCode: c.hex,
+            sortOrder: idx,
+          })),
+          variants: variants.map((v) => ({
+            name: v.name,
+            sku: v.sku,
+            size: v.size,
+            price: v.price,
+            compareAtPrice: v.compareAtPrice ?? null,
+            stock: v.stock,
+            reorderLevel: v.reorderLevel,
+            isActive: v.active,
+            colorName: v.colorName,
+          })),
+          images: images.map((img, idx) => ({
+            imagekitFileId: img.fileId || `img-${idx}-${Date.now().toString(36)}`,
+            url: img.url,
+            altText: img.alt || values.name,
+            sortOrder: idx,
+          })),
+        });
+
+        if (res.success) {
+          toast({
+            title: status === "active" ? "Product published" : "Saved as draft",
+            description: `${values.name} has been ${status === "active" ? "published to the store" : "saved as a draft"}.`,
+          });
+          router.push("/products");
+          router.refresh();
+        } else {
+          toast({
+            title: "Failed to create product",
+            description: res.error || "An error occurred.",
+            variant: "error",
+          });
+        }
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error saving product",
+        description: err.message || "Failed to communicate with server.",
+        variant: "error",
+      });
+    }
   };
 
   const priceRange = useMemo(() => {
@@ -548,7 +696,7 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
-                      {state.categories
+                      {categories
                         .filter((c) => c.status === "active")
                         .map((parent) => {
                           const children = leafCategories.filter((c) => c.parentId === parent.id);
@@ -799,12 +947,22 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
               </Badge>
             </CardHeader>
             <CardContent className="space-y-4">
+              <ImageUpload
+                folder="/scrubx/products"
+                multiple={true}
+                colorOptions={colors}
+                selectedColorId={imageColor === "shared" ? null : imageColor}
+                onColorChange={(cId) => setImageColor(cId ?? "shared")}
+                onUploadSuccess={addUploadedMedia}
+                helperText="Upload product photos directly to ImageKit CDN."
+              />
+
               {images.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-line-strong bg-surface-muted/50 px-4 py-8 text-center">
                   <ImagePlus className="mx-auto h-5 w-5 text-ink-muted" />
                   <p className="mt-2 text-[13px] font-medium text-ink">No images uploaded</p>
                   <p className="text-[12px] text-ink-muted">
-                    Add an image URL below or pick one from the mock library.
+                    Upload photos above, add an image URL below, or pick one from the mock library.
                   </p>
                 </div>
               ) : (
@@ -817,11 +975,13 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                         image.isMain ? "border-brand-400 ring-2 ring-brand-100" : "border-line",
                       )}
                     >
-                      <div className="aspect-square w-full overflow-hidden bg-surface-muted">
-                        <img
+                      <div className="relative aspect-square w-full overflow-hidden bg-surface-muted">
+                        <Image
                           src={image.url}
                           alt={image.alt}
-                          className="h-full w-full object-cover"
+                          fill
+                          sizes="(max-width: 768px) 50vw, 160px"
+                          className="object-cover"
                         />
                       </div>
                       <div className="flex items-center justify-between gap-1 border-t border-line px-2 py-1.5">
@@ -830,7 +990,14 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                             ? colors.find((c) => c.id === image.colorId)?.name ?? "Colour"
                             : "Shared"}
                         </span>
-                        {image.isMain && <Badge variant="brand">Main</Badge>}
+                        <div className="flex items-center gap-1">
+                          {image.fileId && (
+                            <span className="rounded bg-brand-50 px-1 py-0.5 text-[9.5px] font-medium text-brand-700">
+                              IK
+                            </span>
+                          )}
+                          {image.isMain && <Badge variant="brand">Main</Badge>}
+                        </div>
                       </div>
                       <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-navy-900/70 px-1.5 py-1 opacity-0 transition-opacity group-hover:opacity-100">
                         <div className="flex gap-0.5">
@@ -920,10 +1087,10 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
                       key={src}
                       type="button"
                       onClick={() => addImage(src, imageColor === "shared" ? null : imageColor)}
-                      className="h-14 w-14 overflow-hidden rounded-md border border-line transition-transform hover:scale-105"
+                      className="relative h-14 w-14 overflow-hidden rounded-md border border-line transition-transform hover:scale-105"
                       title={src}
                     >
-                      <img src={src} alt={src} className="h-full w-full object-cover" />
+                      <Image src={src} alt={src} fill sizes="56px" className="object-cover" />
                     </button>
                   ))}
                 </div>
@@ -1174,12 +1341,14 @@ export default function ProductFormPage({ id: propId }: { id?: string } = {}) {
             </CardHeader>
             <CardContent>
               <div className="overflow-hidden rounded-lg border border-line bg-surface">
-                <div className="aspect-square overflow-hidden bg-surface-muted">
+                <div className="relative aspect-square overflow-hidden bg-surface-muted">
                   {images.find((i) => i.isMain) || images[0] ? (
-                    <img
+                    <Image
                       src={(images.find((i) => i.isMain) ?? images[0]).url}
                       alt="Product preview"
-                      className="h-full w-full object-cover"
+                      fill
+                      sizes="(max-width: 1024px) 100vw, 360px"
+                      className="object-cover"
                     />
                   ) : (
                     <div className="flex h-full items-center justify-center text-ink-muted">

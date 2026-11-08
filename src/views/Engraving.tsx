@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   Hash,
@@ -44,19 +45,32 @@ import { PageHeader } from "../components/shared/page-header";
 import { EmptyState } from "../components/shared/empty-state";
 import { ConfirmDialog } from "../components/shared/confirm-dialog";
 import { useToast } from "../components/ui/toast";
-import { useStore } from "../data/store";
 import { formatPKR } from "../lib/format";
 import { uid } from "../lib/utils";
 import type { EngravingOption } from "../lib/types";
+import {
+  createEngravingOptionAction,
+  updateEngravingOptionAction,
+  toggleEngravingOptionStatusAction,
+  deleteEngravingOptionAction,
+} from "../actions/engraving";
 
-export default function EngravingPage() {
-  const { state, saveEngravingOption, deleteEngravingOption } = useStore();
+interface EngravingProps {
+  initialOptions?: EngravingOption[];
+}
+
+export default function EngravingPage({ initialOptions = [] }: EngravingProps) {
+  const router = useRouter();
   const { toast } = useToast();
+  const [options, setOptions] = useState<EngravingOption[]>(initialOptions);
   const [editing, setEditing] = useState<EngravingOption | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<EngravingOption | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const options = state.engravingOptions;
+  useEffect(() => {
+    setOptions(initialOptions);
+  }, [initialOptions]);
 
   const openCreate = () => {
     setEditing({
@@ -74,6 +88,138 @@ export default function EngravingPage() {
   const openEdit = (option: EngravingOption) => {
     setEditing({ ...option });
     setDialogOpen(true);
+  };
+
+  const handleSave = async (option: EngravingOption) => {
+    setIsSubmitting(true);
+    const isExisting = options.some((o) => o.id === option.id);
+
+    try {
+      if (isExisting) {
+        const res = await updateEngravingOptionAction({
+          id: option.id,
+          name: option.name.trim(),
+          type: option.type,
+          description: option.description?.trim() || null,
+          price: Number(option.price),
+          maxCharacters: option.type === "logo" ? null : (option.maxCharacters ? Number(option.maxCharacters) : null),
+          isActive: Boolean(option.active),
+        });
+
+        if (res.success) {
+          toast({
+            title: "Engraving option updated",
+            description: option.name,
+          });
+          setDialogOpen(false);
+          router.refresh();
+        } else {
+          toast({
+            title: "Failed to update engraving option",
+            description: res.error || "An unexpected error occurred",
+            variant: "error",
+          });
+        }
+      } else {
+        const res = await createEngravingOptionAction({
+          name: option.name.trim(),
+          type: option.type,
+          description: option.description?.trim() || undefined,
+          price: Number(option.price),
+          maxCharacters: option.type === "logo" ? null : (option.maxCharacters ? Number(option.maxCharacters) : 12),
+          isActive: Boolean(option.active),
+        });
+
+        if (res.success) {
+          toast({
+            title: "Engraving option created",
+            description: option.name,
+          });
+          setDialogOpen(false);
+          router.refresh();
+        } else {
+          toast({
+            title: "Failed to create engraving option",
+            description: res.error || "An unexpected error occurred",
+            variant: "error",
+          });
+        }
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error saving engraving option",
+        description: err.message || "An unexpected error occurred",
+        variant: "error",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleToggleActive = async (option: EngravingOption, checked: boolean) => {
+    setOptions((prev) =>
+      prev.map((o) => (o.id === option.id ? { ...o, active: checked } : o))
+    );
+
+    try {
+      const res = await toggleEngravingOptionStatusAction({
+        id: option.id,
+        isActive: checked,
+      });
+
+      if (res.success) {
+        toast({
+          title: checked ? "Option activated" : "Option deactivated",
+          description: option.name,
+        });
+        router.refresh();
+      } else {
+        setOptions((prev) =>
+          prev.map((o) => (o.id === option.id ? { ...o, active: !checked } : o))
+        );
+        toast({
+          title: "Failed to update status",
+          description: res.error || "An unexpected error occurred",
+          variant: "error",
+        });
+      }
+    } catch (err: any) {
+      setOptions((prev) =>
+        prev.map((o) => (o.id === option.id ? { ...o, active: !checked } : o))
+      );
+      toast({
+        title: "Error updating status",
+        description: err.message || "An unexpected error occurred",
+        variant: "error",
+      });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setIsSubmitting(true);
+    try {
+      const res = await deleteEngravingOptionAction({ id: deleteTarget.id });
+      if (res.success) {
+        toast({ title: "Engraving option deleted", variant: "error" });
+        setDeleteTarget(null);
+        router.refresh();
+      } else {
+        toast({
+          title: "Failed to delete engraving option",
+          description: res.error || "An unexpected error occurred",
+          variant: "error",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error deleting engraving option",
+        description: err.message || "An unexpected error occurred",
+        variant: "error",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -179,13 +325,7 @@ export default function EngravingPage() {
                   </Badge>
                   <Switch
                     checked={option.active}
-                    onCheckedChange={(checked) => {
-                      saveEngravingOption({ ...option, active: checked });
-                      toast({
-                        title: checked ? "Option activated" : "Option deactivated",
-                        description: option.name,
-                      });
-                    }}
+                    onCheckedChange={(checked) => handleToggleActive(option, checked)}
                     aria-label={`Toggle ${option.name}`}
                   />
                 </div>
@@ -199,14 +339,8 @@ export default function EngravingPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         option={editing}
-        onSave={(option) => {
-          saveEngravingOption(option);
-          toast({
-            title: editing?.name ? "Engraving option updated" : "Engraving option created",
-            description: option.name,
-          });
-          setDialogOpen(false);
-        }}
+        isSubmitting={isSubmitting}
+        onSave={handleSave}
       />
 
       <ConfirmDialog
@@ -220,11 +354,7 @@ export default function EngravingPage() {
         }
         confirmLabel="Delete option"
         destructive
-        onConfirm={() => {
-          if (!deleteTarget) return;
-          deleteEngravingOption(deleteTarget.id);
-          toast({ title: "Engraving option deleted", variant: "error" });
-        }}
+        onConfirm={handleDelete}
       />
     </div>
   );
@@ -234,11 +364,13 @@ function EngravingDialog({
   open,
   onOpenChange,
   option,
+  isSubmitting,
   onSave,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   option: EngravingOption | null;
+  isSubmitting: boolean;
   onSave: (option: EngravingOption) => void;
 }) {
   const { toast } = useToast();
@@ -341,11 +473,11 @@ function EngravingDialog({
           </div>
         </DialogBody>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
             Cancel
           </Button>
           <Button
-            disabled={!draft.name.trim()}
+            disabled={!draft.name.trim() || isSubmitting}
             onClick={() => {
               if (!draft.name.trim()) {
                 toast({ title: "Option name is required", variant: "error" });
@@ -354,7 +486,11 @@ function EngravingDialog({
               onSave(draft);
             }}
           >
-            {option?.name ? "Save changes" : "Create option"}
+            {isSubmitting
+              ? "Saving..."
+              : option?.name
+              ? "Save changes"
+              : "Create option"}
           </Button>
         </DialogFooter>
       </DialogContent>

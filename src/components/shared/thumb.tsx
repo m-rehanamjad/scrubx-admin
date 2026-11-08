@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { cn } from "../../lib/utils";
 
 export function ProductThumb({
@@ -20,19 +21,17 @@ export function ProductThumb({
   return (
     <div
       className={cn(
-        "shrink-0 overflow-hidden border border-line bg-surface-muted",
+        "relative shrink-0 overflow-hidden border border-line bg-surface-muted",
         sizes[size],
         className,
       )}
     >
-      <img
+      <Image
         src={src}
         alt={alt}
-        loading="lazy"
-        className="h-full w-full object-cover"
-        onError={(e) => {
-          (e.currentTarget as HTMLImageElement).style.opacity = "0.25";
-        }}
+        fill
+        sizes="(max-width: 768px) 100vw, 96px"
+        className="object-cover"
       />
     </div>
   );

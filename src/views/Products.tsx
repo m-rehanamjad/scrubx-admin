@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Archive,
   Copy,
@@ -47,19 +48,44 @@ import { EmptyState } from "../components/shared/empty-state";
 import { Pagination } from "../components/shared/pagination";
 import { ConfirmDialog } from "../components/shared/confirm-dialog";
 import { ProductStatusBadge, StockBadge } from "../components/shared/status-badges";
-import { useSimulatedLoading } from "../components/shared/use-simulated-loading";
 import { TableSkeleton } from "../components/ui/skeleton";
-import { useStore, productTotalStock } from "../data/store";
 import { formatPKR } from "../lib/format";
 import { useToast } from "../components/ui/toast";
-import type { Product, ProductStatus } from "../lib/types";
+import type { Product, ProductStatus, Category } from "../lib/types";
+import {
+  archiveProductAction,
+  deleteProductAction,
+  createProductAction,
+  updateProductAction,
+} from "../actions/products";
 
 type SortKey = "newest" | "name" | "price-asc" | "price-desc" | "stock-asc" | "stock-desc";
 
-export default function ProductsPage() {
-  const { state, deleteProduct, setProductStatus, setProducts } = useStore();
+interface ProductsProps {
+  initialProducts?: Product[];
+  initialCategories?: Category[];
+}
+
+function computeProductTotalStock(product: Product): number {
+  return product.variants.reduce((sum, v) => sum + (v.stock || 0), 0);
+}
+
+export default function ProductsPage({
+  initialProducts = [],
+  initialCategories = [],
+}: ProductsProps) {
+  const router = useRouter();
   const { toast } = useToast();
-  const loading = useSimulatedLoading(300);
+  const [products, setProducts] = useState<Product[]>(initialProducts);
+  const [categories, setCategories] = useState<Category[]>(initialCategories);
+
+  useEffect(() => {
+    setProducts(initialProducts);
+  }, [initialProducts]);
+
+  useEffect(() => {
+    setCategories(initialCategories);
+  }, [initialCategories]);
 
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
@@ -71,16 +97,16 @@ export default function ProductsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
 
   const categoryOptions = useMemo(() => {
-    const leaf = state.categories.filter((c) => c.parentId);
+    const leaf = categories.filter((c) => c.parentId);
     return leaf.map((c) => {
-      const parent = state.categories.find((p) => p.id === c.parentId);
+      const parent = categories.find((p) => p.id === c.parentId);
       return { id: c.id, label: parent ? `${parent.name} / ${c.name}` : c.name };
     });
-  }, [state.categories]);
+  }, [categories]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = state.products.filter((product) => {
+    const list = products.filter((product) => {
       const matchesQuery =
         !q ||
         product.name.toLowerCase().includes(q) ||
@@ -102,15 +128,15 @@ export default function ProductsPage() {
         case "price-desc":
           return minPrice(b) - minPrice(a);
         case "stock-asc":
-          return productTotalStock(a) - productTotalStock(b);
+          return computeProductTotalStock(a) - computeProductTotalStock(b);
         case "stock-desc":
-          return productTotalStock(b) - productTotalStock(a);
+          return computeProductTotalStock(b) - computeProductTotalStock(a);
         default:
           return +new Date(b.createdAt) - +new Date(a.createdAt);
       }
     });
     return sorted;
-  }, [state.products, query, category, status, sort]);
+  }, [products, query, category, status, sort]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, pageCount);
@@ -125,36 +151,144 @@ export default function ProductsPage() {
     setSelected(allSelected ? [] : [...new Set([...selected, ...visible.map((p) => p.id)])]);
   };
 
-  const archiveSelected = () => {
-    setProducts((prev) =>
-      prev.map((p) =>
-        selected.includes(p.id) ? { ...p, status: "archived" as ProductStatus, updatedAt: new Date().toISOString() } : p,
-      ),
-    );
-    toast({
-      title: `${selected.length} product${selected.length === 1 ? "" : "s"} archived`,
-      description: "Archived products are hidden from the storefront.",
-    });
-    setSelected([]);
+  const archiveSelected = async () => {
+    try {
+      await Promise.all(selected.map((id) => archiveProductAction({ id })));
+      toast({
+        title: `${selected.length} product${selected.length === 1 ? "" : "s"} archived`,
+        description: "Archived products are hidden from the storefront.",
+      });
+      setSelected([]);
+      router.refresh();
+    } catch (err: any) {
+      toast({
+        title: "Failed to archive products",
+        description: err.message,
+        variant: "error",
+      });
+    }
   };
 
-  const duplicateProduct = (product: Product) => {
-    const copy: Product = {
-      ...product,
-      id: `prd-${Date.now().toString(36)}`,
-      name: `${product.name} (Copy)`,
-      slug: `${product.slug}-copy`,
-      status: "draft",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      variants: product.variants.map((v) => ({
-        ...v,
-        id: `${v.id}-${Date.now().toString(36)}`,
-        sku: `${v.sku}-CP`,
-      })),
-    };
-    setProducts((prev) => [copy, ...prev]);
-    toast({ title: "Product duplicated", description: `${copy.name} created as a draft.` });
+  const duplicateProduct = async (product: Product) => {
+    try {
+      const res = await createProductAction({
+        name: `${product.name} (Copy)`,
+        slug: `${product.slug}-copy-${Date.now().toString(36)}`,
+        description: product.description || undefined,
+        categoryId: product.categoryId || undefined,
+        brand: product.brand || undefined,
+        gender: (product.gender as any) || "unisex",
+        material: product.material || undefined,
+        status: "draft",
+        isEngravable: product.engraveable,
+        isFeatured: false,
+        variants: product.variants.map((v, i) => ({
+          name: v.name,
+          sku: `${v.sku}-CP-${Date.now().toString(36).slice(-4)}`,
+          size: v.size,
+          price: v.price,
+          stock: v.stock,
+          reorderLevel: v.reorderLevel,
+          isActive: v.active,
+        })),
+      });
+
+      if (res.success) {
+        toast({ title: "Product duplicated", description: `${product.name} duplicated as draft.` });
+        router.refresh();
+      } else {
+        toast({
+          title: "Failed to duplicate product",
+          description: res.error || "An error occurred.",
+          variant: "error",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error duplicating product",
+        description: err.message,
+        variant: "error",
+      });
+    }
+  };
+
+  const handleArchive = async (id: string, name: string) => {
+    try {
+      const res = await archiveProductAction({ id });
+      if (res.success) {
+        toast({
+          title: "Product archived",
+          description: `${name} was archived.`,
+          variant: "info",
+        });
+        router.refresh();
+      } else {
+        toast({
+          title: "Failed to archive product",
+          description: res.error || "Could not archive product.",
+          variant: "error",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error archiving product",
+        description: err.message,
+        variant: "error",
+      });
+    }
+  };
+
+  const handleRestore = async (id: string, name: string) => {
+    try {
+      const res = await updateProductAction({ id, status: "active" });
+      if (res.success) {
+        toast({
+          title: "Product restored",
+          description: `${name} is live again.`,
+        });
+        router.refresh();
+      } else {
+        toast({
+          title: "Failed to restore product",
+          description: res.error || "Could not restore product.",
+          variant: "error",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error restoring product",
+        description: err.message,
+        variant: "error",
+      });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      const res = await deleteProductAction({ id: deleteTarget.id });
+      if (res.success) {
+        toast({
+          title: "Product deleted",
+          description: `${deleteTarget.name} was removed.`,
+          variant: "error",
+        });
+        setDeleteTarget(null);
+        router.refresh();
+      } else {
+        toast({
+          title: "Failed to delete product",
+          description: res.error || "Could not delete product.",
+          variant: "error",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error deleting product",
+        description: err.message,
+        variant: "error",
+      });
+    }
   };
 
   return (
@@ -265,9 +399,7 @@ export default function ProductsPage() {
             )}
           </div>
 
-          {loading ? (
-            <TableSkeleton rows={8} cols={6} />
-          ) : visible.length === 0 ? (
+          {visible.length === 0 ? (
             <EmptyState
               className="m-4"
               icon={<SearchX className="h-5 w-5" />}
@@ -309,12 +441,12 @@ export default function ProductsPage() {
                 </TableHeader>
                 <TableBody>
                   {visible.map((product) => {
-                    const stock = productTotalStock(product);
+                    const stock = computeProductTotalStock(product);
                     const min = minPrice(product);
                     const max = maxPrice(product);
-                    const parent = state.categories.find((c) => c.id === product.categoryId);
+                    const parent = categories.find((c) => c.id === product.categoryId);
                     const grandParent = parent?.parentId
-                      ? state.categories.find((c) => c.id === parent.parentId)
+                      ? categories.find((c) => c.id === parent.parentId)
                       : undefined;
                     return (
                       <TableRow key={product.id}>
@@ -341,7 +473,7 @@ export default function ProductsPage() {
                               <p className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-ink-muted">
                                 <span className="font-mono">{product.slug}</span>
                                 {product.engraveable && (
-                                  <Badge variant="purple" className="py-0 text-[9px]">
+                                   <Badge variant="purple" className="py-0 text-[9px]">
                                     Engravable
                                   </Badge>
                                 )}
@@ -400,27 +532,14 @@ export default function ProductsPage() {
                               <DropdownMenuSeparator />
                               {product.status !== "archived" ? (
                                 <DropdownMenuItem
-                                  onClick={() => {
-                                    setProductStatus(product.id, "archived");
-                                    toast({
-                                      title: "Product archived",
-                                      description: `${product.name} was archived.`,
-                                      variant: "info",
-                                    });
-                                  }}
+                                  onClick={() => handleArchive(product.id, product.name)}
                                 >
                                   <Archive className="h-3.5 w-3.5" />
                                   Archive
                                 </DropdownMenuItem>
                               ) : (
                                 <DropdownMenuItem
-                                  onClick={() => {
-                                    setProductStatus(product.id, "active");
-                                    toast({
-                                      title: "Product restored",
-                                      description: `${product.name} is live again.`,
-                                    });
-                                  }}
+                                  onClick={() => handleRestore(product.id, product.name)}
                                 >
                                   <Package className="h-3.5 w-3.5" />
                                   Restore to active
@@ -468,15 +587,7 @@ export default function ProductsPage() {
         }
         confirmLabel="Delete product"
         destructive
-        onConfirm={() => {
-          if (!deleteTarget) return;
-          deleteProduct(deleteTarget.id);
-          toast({
-            title: "Product deleted",
-            description: `${deleteTarget.name} was removed.`,
-            variant: "error",
-          });
-        }}
+        onConfirm={handleDelete}
       />
     </div>
   );

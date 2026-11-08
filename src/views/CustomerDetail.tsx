@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Mail,
@@ -29,33 +29,34 @@ import { Avatar } from "../components/shared/thumb";
 import { OrderStatusBadge } from "../components/shared/status-badges";
 import { EmptyState } from "../components/shared/empty-state";
 import { useToast } from "../components/ui/toast";
-import { useStore } from "../data/store";
 import { formatDate, formatDateTime, formatPKR } from "../lib/format";
+import type { Customer, Order } from "../lib/types";
+import { updateCustomerAction } from "../actions/customers";
 
-export default function CustomerDetailPage({ id: propId }: { id?: string } = {}) {
-  const routeParams = useParams();
-  const id = propId ?? (routeParams?.id as string | undefined);
-  const { state, addCustomerNote } = useStore();
+interface CustomerDetailProps {
+  id?: string;
+  initialCustomer?: Customer;
+  initialOrders?: Order[];
+}
+
+export default function CustomerDetailPage({
+  id: propId,
+  initialCustomer,
+  initialOrders = [],
+}: CustomerDetailProps) {
+  const router = useRouter();
   const { toast } = useToast();
   const [note, setNote] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const customer = useMemo(
-    () => state.customers.find((c) => c.id === id),
-    [state.customers, id],
-  );
-  const orders = useMemo(
-    () =>
-      state.orders
-        .filter((o) => o.customerId === id)
-        .sort((a, b) => +new Date(b.date) - +new Date(a.date)),
-    [state.orders, id],
-  );
+  const customer = initialCustomer;
+  const orders = initialOrders;
 
   if (!customer) {
     return (
       <EmptyState
         title="Customer not found"
-        description="This customer record may have been removed."
+        description="This customer record may have been removed or does not exist."
         action={
           <Button asChild>
             <Link href="/customers">Back to customers</Link>
@@ -69,6 +70,39 @@ export default function CustomerDetailPage({ id: propId }: { id?: string } = {})
     .filter((o) => o.status !== "cancelled")
     .reduce((sum, o) => sum + o.total, 0);
   const averageOrder = orders.length ? spend / orders.length : 0;
+
+  const handleAddNote = async () => {
+    if (!note.trim()) return;
+    setIsSubmitting(true);
+    try {
+      const existingNotes = customer.notes.map((n) => n.text).join("\n---\n");
+      const updatedNotes = existingNotes ? `${existingNotes}\n---\n${note.trim()}` : note.trim();
+      const res = await updateCustomerAction({
+        id: customer.id,
+        notes: updatedNotes,
+      });
+
+      if (res.success) {
+        toast({ title: "Note saved" });
+        setNote("");
+        router.refresh();
+      } else {
+        toast({
+          title: "Failed to save note",
+          description: res.error || "An error occurred.",
+          variant: "error",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error saving note",
+        description: err.message,
+        variant: "error",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -100,11 +134,9 @@ export default function CustomerDetailPage({ id: propId }: { id?: string } = {})
                 <CardContent className="flex items-start justify-between p-4">
                   <div>
                     <p className="text-[12px] font-medium text-ink-muted">{stat.label}</p>
-                    <p className="mt-1.5 text-[19px] font-semibold leading-none text-ink tabular">
-                      {stat.value}
-                    </p>
+                    <p className="mt-1.5 text-[20px] font-semibold text-ink tabular">{stat.value}</p>
                   </div>
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-muted text-ink-muted">
                     <stat.icon className="h-4.5 w-4.5" />
                   </span>
                 </CardContent>
@@ -113,19 +145,16 @@ export default function CustomerDetailPage({ id: propId }: { id?: string } = {})
           </div>
 
           <Card>
-            <CardHeader>
+            <CardHeader className="flex-row items-center justify-between gap-3">
               <h2 className="text-[15px] font-semibold text-ink">Order history</h2>
-              <p className="text-[12.5px] text-ink-muted">
-                {orders.length} order{orders.length === 1 ? "" : "s"} placed by this customer.
-              </p>
+              <Badge variant="neutral">{orders.length} orders</Badge>
             </CardHeader>
             <CardContent className="p-0">
               {orders.length === 0 ? (
                 <EmptyState
                   className="m-4"
-                  icon={<ShoppingBag className="h-5 w-5" />}
                   title="No orders yet"
-                  description="This customer has not placed an order so far."
+                  description="When this customer places an order it will appear here."
                 />
               ) : (
                 <Table>
@@ -133,9 +162,8 @@ export default function CustomerDetailPage({ id: propId }: { id?: string } = {})
                     <TableRow>
                       <TableHead>Order</TableHead>
                       <TableHead>Date</TableHead>
-                      <TableHead className="text-right">Items</TableHead>
+                      <TableHead>Items</TableHead>
                       <TableHead className="text-right">Total</TableHead>
-                      <TableHead>Payment</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -145,21 +173,18 @@ export default function CustomerDetailPage({ id: propId }: { id?: string } = {})
                         <TableCell>
                           <Link
                             href={`/orders/${order.id}`}
-                            className="font-mono text-[12.5px] font-medium text-brand-700 hover:underline"
+                            className="font-mono text-[13px] font-semibold text-brand-700 hover:underline"
                           >
                             {order.orderNumber}
                           </Link>
                         </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {formatDate(order.date)}
-                        </TableCell>
-                        <TableCell className="text-right tabular">
-                          {order.items.reduce((sum, i) => sum + i.quantity, 0)}
+                        <TableCell className="text-ink-muted">{formatDate(order.date)}</TableCell>
+                        <TableCell className="tabular">
+                          {order.items.reduce((sum, i) => sum + i.quantity, 0)} units
                         </TableCell>
                         <TableCell className="text-right font-medium text-ink tabular">
                           {formatPKR(order.total)}
                         </TableCell>
-                        <TableCell className="capitalize">{order.paymentMethod}</TableCell>
                         <TableCell>
                           <OrderStatusBadge status={order.status} />
                         </TableCell>
@@ -173,20 +198,22 @@ export default function CustomerDetailPage({ id: propId }: { id?: string } = {})
 
           <Card>
             <CardHeader>
-              <h2 className="text-[15px] font-semibold text-ink">Notes</h2>
+              <h2 className="text-[15px] font-semibold text-ink">Staff notes</h2>
               <p className="text-[12.5px] text-ink-muted">
-                Internal notes about preferences, sizing or delivery instructions.
+                Private notes recorded by your team regarding hospital preferences, sizing or custom requests.
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
               {customer.notes.length === 0 ? (
-                <p className="text-[13px] text-ink-muted">No notes saved for this customer.</p>
+                <p className="text-[13px] text-ink-muted">No notes on this customer yet.</p>
               ) : (
                 <div className="space-y-2">
                   {customer.notes.map((item) => (
                     <div key={item.id} className="rounded-md border border-line bg-surface-muted/60 p-3">
                       <p className="text-[13px] text-ink">{item.text}</p>
-                      <p className="mt-1 text-[11.5px] text-ink-muted">{formatDateTime(item.at)}</p>
+                      <p className="mt-1 text-[11.5px] text-ink-muted">
+                        Recorded {formatDateTime(item.at)}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -196,20 +223,16 @@ export default function CustomerDetailPage({ id: propId }: { id?: string } = {})
                   rows={2}
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  placeholder="e.g. Prefers navy scrubs, size medium"
+                  placeholder="Record customer preferences, sizing or hospital affiliation…"
                   className="flex-1"
                 />
                 <Button
                   className="self-start"
-                  disabled={!note.trim()}
-                  onClick={() => {
-                    addCustomerNote(customer.id, note.trim());
-                    setNote("");
-                    toast({ title: "Note saved" });
-                  }}
+                  disabled={!note.trim() || isSubmitting}
+                  onClick={handleAddNote}
                 >
                   <MessageSquarePlus className="h-4 w-4" />
-                  Add note
+                  {isSubmitting ? "Saving..." : "Add note"}
                 </Button>
               </div>
             </CardContent>

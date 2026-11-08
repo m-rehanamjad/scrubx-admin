@@ -1,7 +1,7 @@
 import { Badge } from "../ui/badge";
 import { cn } from "../../lib/utils";
 import type { OrderStatus, PaymentStatus, ProductStatus } from "../../lib/types";
-import { ORDER_STATUS_LABEL } from "../../data/mock";
+import { ORDER_STATUS_LABEL } from "../../lib/constants";
 
 const orderVariant: Record<OrderStatus, "neutral" | "brand" | "navy" | "success" | "warning" | "danger" | "info" | "purple"> = {
   awaiting_payment: "warning",

@@ -18,7 +18,6 @@ import {
   Wallet,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
-import { useStore } from "../../data/store";
 
 interface NavItem {
   to: string;
@@ -28,13 +27,16 @@ interface NavItem {
   end?: boolean;
 }
 
-export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
+export function SidebarNav({
+  onNavigate,
+  pendingPayments = 0,
+  lowStock = 0,
+}: {
+  onNavigate?: () => void;
+  pendingPayments?: number;
+  lowStock?: number;
+}) {
   const pathname = usePathname() || "";
-  const { state } = useStore();
-  const pendingPayments = state.paymentSubmissions.filter((s) => s.status === "submitted").length;
-  const lowStock = state.products.filter((p) =>
-    p.variants.some((v) => v.stock <= v.reorderLevel && v.active),
-  ).length;
 
   const sections: { title: string; items: NavItem[] }[] = [
     {

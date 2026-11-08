@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Clock, PackageCheck, Pencil, Plus, Trash2, Truck } from "lucide-react";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -21,19 +22,37 @@ import { PageHeader } from "../components/shared/page-header";
 import { EmptyState } from "../components/shared/empty-state";
 import { ConfirmDialog } from "../components/shared/confirm-dialog";
 import { useToast } from "../components/ui/toast";
-import { useStore } from "../data/store";
 import { formatPKR } from "../lib/format";
 import { uid } from "../lib/utils";
 import type { ShippingMethod } from "../lib/types";
+import {
+  createShippingMethodAction,
+  updateShippingMethodAction,
+  toggleShippingMethodStatusAction,
+  deleteShippingMethodAction,
+} from "../actions/shipping";
 
-export default function ShippingPage() {
-  const { state, saveShippingMethod, deleteShippingMethod } = useStore();
+interface ShippingProps {
+  initialMethods?: ShippingMethod[];
+}
+
+export default function ShippingPage({ initialMethods = [] }: ShippingProps) {
+  const router = useRouter();
   const { toast } = useToast();
+  const [methods, setMethods] = useState<ShippingMethod[]>(initialMethods);
   const [editing, setEditing] = useState<ShippingMethod | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ShippingMethod | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const methods = [...state.shippingMethods].sort((a, b) => a.displayOrder - b.displayOrder);
+  useEffect(() => {
+    setMethods(initialMethods);
+  }, [initialMethods]);
+
+  const sortedMethods = useMemo(
+    () => [...methods].sort((a, b) => a.displayOrder - b.displayOrder),
+    [methods],
+  );
 
   const openCreate = () => {
     setEditing({
@@ -55,6 +74,130 @@ export default function ShippingPage() {
     setDialogOpen(true);
   };
 
+  const handleSave = async (method: ShippingMethod) => {
+    setIsSubmitting(true);
+    const isExisting = methods.some((m) => m.id === method.id);
+
+    try {
+      if (isExisting) {
+        const res = await updateShippingMethodAction({
+          id: method.id,
+          name: method.name.trim(),
+          description: method.description?.trim() || null,
+          price: Number(method.price),
+          freeAbove: method.freeShippingThreshold ? Number(method.freeShippingThreshold) : null,
+          minDays: Number(method.minDays),
+          maxDays: Number(method.maxDays),
+          isActive: Boolean(method.active),
+          sortOrder: Number(method.displayOrder),
+        });
+
+        if (res.success) {
+          toast({
+            title: "Shipping method updated",
+            description: method.name,
+          });
+          setDialogOpen(false);
+          router.refresh();
+        } else {
+          toast({
+            title: "Failed to update shipping method",
+            description: res.error || "An error occurred.",
+            variant: "error",
+          });
+        }
+      } else {
+        const res = await createShippingMethodAction({
+          name: method.name.trim(),
+          description: method.description?.trim() || null,
+          price: Number(method.price),
+          freeAbove: method.freeShippingThreshold ? Number(method.freeShippingThreshold) : null,
+          minDays: Number(method.minDays),
+          maxDays: Number(method.maxDays),
+          isActive: Boolean(method.active),
+          sortOrder: Number(method.displayOrder),
+        });
+
+        if (res.success) {
+          toast({
+            title: "Shipping method created",
+            description: method.name,
+          });
+          setDialogOpen(false);
+          router.refresh();
+        } else {
+          toast({
+            title: "Failed to create shipping method",
+            description: res.error || "An error occurred.",
+            variant: "error",
+          });
+        }
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error saving shipping method",
+        description: err.message,
+        variant: "error",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleToggle = async (method: ShippingMethod) => {
+    try {
+      const nextActive = !method.active;
+      const res = await toggleShippingMethodStatusAction({
+        id: method.id,
+        isActive: nextActive,
+      });
+
+      if (res.success) {
+        toast({
+          title: nextActive ? "Method enabled" : "Method disabled",
+          description: method.name,
+        });
+        router.refresh();
+      } else {
+        toast({
+          title: "Failed to update status",
+          description: res.error || "An error occurred.",
+          variant: "error",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error updating status",
+        description: err.message,
+        variant: "error",
+      });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      const res = await deleteShippingMethodAction({ id: deleteTarget.id });
+      if (res.success) {
+        toast({ title: "Shipping method deleted", variant: "error" });
+        setDeleteTarget(null);
+        router.refresh();
+      } else {
+        toast({
+          title: "Failed to delete method",
+          description: res.error || "An error occurred.",
+          variant: "error",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error deleting method",
+        description: err.message,
+        variant: "error",
+      });
+    }
+  };
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -69,7 +212,7 @@ export default function ShippingPage() {
         }
       />
 
-      {methods.length === 0 ? (
+      {sortedMethods.length === 0 ? (
         <EmptyState
           icon={<Truck className="h-5 w-5" />}
           title="No shipping methods"
@@ -78,7 +221,7 @@ export default function ShippingPage() {
         />
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
-          {methods.map((method) => (
+          {sortedMethods.map((method) => (
             <Card key={method.id} className={method.active ? "" : "opacity-75"}>
               <CardContent className="p-5">
                 <div className="flex items-start justify-between gap-3">
@@ -136,13 +279,7 @@ export default function ShippingPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => {
-                        saveShippingMethod({ ...method, active: !method.active });
-                        toast({
-                          title: method.active ? "Method disabled" : "Method enabled",
-                          description: method.name,
-                        });
-                      }}
+                      onClick={() => handleToggle(method)}
                     >
                       {method.active ? "Disable" : "Enable"}
                     </Button>
@@ -166,14 +303,8 @@ export default function ShippingPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         method={editing}
-        onSave={(method) => {
-          saveShippingMethod(method);
-          toast({
-            title: editing?.name ? "Shipping method updated" : "Shipping method created",
-            description: method.name,
-          });
-          setDialogOpen(false);
-        }}
+        onSave={handleSave}
+        isSubmitting={isSubmitting}
       />
 
       <ConfirmDialog
@@ -185,11 +316,7 @@ export default function ShippingPage() {
         }
         confirmLabel="Delete method"
         destructive
-        onConfirm={() => {
-          if (!deleteTarget) return;
-          deleteShippingMethod(deleteTarget.id);
-          toast({ title: "Shipping method deleted", variant: "error" });
-        }}
+        onConfirm={handleDelete}
       />
     </div>
   );
@@ -200,11 +327,13 @@ function ShippingDialog({
   onOpenChange,
   method,
   onSave,
+  isSubmitting = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   method: ShippingMethod | null;
   onSave: (method: ShippingMethod) => void;
+  isSubmitting?: boolean;
 }) {
   const { toast } = useToast();
   const [draft, setDraft] = useState<ShippingMethod | null>(method);
@@ -221,100 +350,103 @@ function ShippingDialog({
         <DialogHeader>
           <DialogTitle>{method?.name ? "Edit shipping method" : "New shipping method"}</DialogTitle>
           <DialogDescription>
-            Delivery charges are shown in PKR at checkout before payment.
+            Configure delivery fees, free shipping rules and expected transit times.
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
+          <div className="space-y-3">
+            <div>
               <Label htmlFor="ship-name">Method name</Label>
               <Input
                 id="ship-name"
                 value={draft.name}
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                placeholder="e.g. Standard Delivery"
+                placeholder="e.g. Standard Delivery (TCS)"
               />
             </div>
-            <div className="sm:col-span-2">
+            <div>
               <Label htmlFor="ship-desc">Description</Label>
               <Textarea
                 id="ship-desc"
                 rows={2}
                 value={draft.description}
                 onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-                placeholder="Which courier and coverage this method uses"
+                placeholder="e.g. Delivered across all major cities of Pakistan via TCS courier."
               />
             </div>
-            <div>
-              <Label htmlFor="ship-price">Shipping price (Rs.)</Label>
-              <Input
-                id="ship-price"
-                type="number"
-                min={0}
-                value={draft.price}
-                onChange={(e) => setDraft({ ...draft, price: Number(e.target.value) })}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="ship-price">Flat shipping price (Rs.)</Label>
+                <Input
+                  id="ship-price"
+                  type="number"
+                  min={0}
+                  value={draft.price}
+                  onChange={(e) => setDraft({ ...draft, price: Number(e.target.value) })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="ship-free">Free over (Rs.)</Label>
+                <Input
+                  id="ship-free"
+                  type="number"
+                  min={0}
+                  value={draft.freeShippingThreshold ?? ""}
+                  placeholder="Optional threshold"
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      freeShippingThreshold: e.target.value ? Number(e.target.value) : null,
+                    })
+                  }
+                />
+              </div>
             </div>
-            <div>
-              <Label htmlFor="ship-free">Free shipping over (Rs.)</Label>
-              <Input
-                id="ship-free"
-                type="number"
-                min={0}
-                value={draft.freeShippingThreshold ?? ""}
-                placeholder="No threshold"
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    freeShippingThreshold: e.target.value === "" ? null : Number(e.target.value),
-                  })
-                }
-              />
-            </div>
-            <div>
-              <Label htmlFor="ship-min">Minimum days</Label>
-              <Input
-                id="ship-min"
-                type="number"
-                min={0}
-                value={draft.minDays}
-                onChange={(e) => setDraft({ ...draft, minDays: Number(e.target.value) })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="ship-max">Maximum days</Label>
-              <Input
-                id="ship-max"
-                type="number"
-                min={0}
-                value={draft.maxDays}
-                onChange={(e) => setDraft({ ...draft, maxDays: Number(e.target.value) })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="ship-order">Display order</Label>
-              <Input
-                id="ship-order"
-                type="number"
-                min={1}
-                value={draft.displayOrder}
-                onChange={(e) => setDraft({ ...draft, displayOrder: Number(e.target.value) })}
-              />
-            </div>
-            <div className="flex items-end">
-              <div className="flex w-full items-center justify-between rounded-md border border-line bg-surface-muted/60 px-3 py-2">
-                <span className="text-[12.5px] font-medium text-ink">Active</span>
-                <Switch
-                  checked={draft.active}
-                  onCheckedChange={(checked) => setDraft({ ...draft, active: checked })}
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <Label htmlFor="ship-min">Min days</Label>
+                <Input
+                  id="ship-min"
+                  type="number"
+                  min={1}
+                  value={draft.minDays}
+                  onChange={(e) => setDraft({ ...draft, minDays: Number(e.target.value) })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="ship-max">Max days</Label>
+                <Input
+                  id="ship-max"
+                  type="number"
+                  min={1}
+                  value={draft.maxDays}
+                  onChange={(e) => setDraft({ ...draft, maxDays: Number(e.target.value) })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="ship-order">Display order</Label>
+                <Input
+                  id="ship-order"
+                  type="number"
+                  min={1}
+                  value={draft.displayOrder}
+                  onChange={(e) => setDraft({ ...draft, displayOrder: Number(e.target.value) })}
                 />
               </div>
             </div>
           </div>
 
-          <div className="flex items-start gap-2 rounded-md border border-brand-100 bg-brand-50 px-3 py-2.5 text-[12px] text-brand-800">
-            <PackageCheck className="mt-0.5 h-4 w-4 shrink-0" />
-            Orders above the free-shipping threshold automatically receive this method at no charge.
+          <div className="flex items-center justify-between rounded-lg border border-line bg-surface-muted/60 p-3">
+            <div>
+              <p className="text-[13px] font-medium text-ink">Active</p>
+              <p className="text-[12px] text-ink-muted">
+                Inactive methods will not appear in checkout.
+              </p>
+            </div>
+            <Switch
+              checked={draft.active}
+              onCheckedChange={(checked) => setDraft({ ...draft, active: checked })}
+            />
           </div>
         </DialogBody>
         <DialogFooter>
@@ -322,16 +454,24 @@ function ShippingDialog({
             Cancel
           </Button>
           <Button
-            disabled={!draft.name.trim()}
+            disabled={!draft.name.trim() || isSubmitting}
             onClick={() => {
               if (!draft.name.trim()) {
                 toast({ title: "Method name is required", variant: "error" });
                 return;
               }
+              if (draft.maxDays < draft.minDays) {
+                toast({
+                  title: "Invalid delivery days",
+                  description: "Maximum days cannot be less than minimum days.",
+                  variant: "error",
+                });
+                return;
+              }
               onSave(draft);
             }}
           >
-            {method?.name ? "Save changes" : "Create method"}
+            {isSubmitting ? "Saving..." : method?.name ? "Save changes" : "Create method"}
           </Button>
         </DialogFooter>
       </DialogContent>

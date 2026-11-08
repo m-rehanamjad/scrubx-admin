@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Area,
   AreaChart,
@@ -40,12 +41,29 @@ import { ProductThumb } from "../components/shared/thumb";
 import { OrderStatusBadge } from "../components/shared/status-badges";
 import { useSimulatedLoading } from "../components/shared/use-simulated-loading";
 import { Skeleton } from "../components/ui/skeleton";
-import { useStore, productTotalStock } from "../data/store";
 import { formatDate, formatPKR } from "../lib/format";
 import { cn } from "../lib/utils";
-import type { OrderStatus } from "../lib/types";
+import type { Order, OrderStatus } from "../lib/types";
 
 type Period = "7d" | "30d" | "90d" | "12m";
+
+export interface DashboardProps {
+  initialOrders?: Order[];
+  initialMetrics?: {
+    totalRevenue: number;
+    totalOrders: number;
+    pendingOrders: number;
+    totalProducts: number;
+    activeProducts: number;
+    totalUnits: number;
+    previousPeriodChange?: number;
+  };
+  initialPeriod?: Period;
+  lowStockItems?: Array<{
+    product: { id: string; name: string };
+    variant: { id: string; name: string; sku: string; stock: number; reorderLevel: number; price: number };
+  }>;
+}
 
 const PERIOD_LABEL: Record<Period, string> = {
   "7d": "Last 7 days",
@@ -66,20 +84,30 @@ const STATUS_COLORS: Partial<Record<OrderStatus, string>> = {
   refunded: "#e11d48",
 };
 
-export default function Dashboard() {
-  const { state } = useStore();
-  const [period, setPeriod] = useState<Period>("30d");
-  const loading = useSimulatedLoading(400);
+export default function Dashboard({
+  initialOrders = [],
+  initialMetrics,
+  initialPeriod = "30d",
+  lowStockItems = [],
+}: DashboardProps = {}) {
+  const router = useRouter();
+  const [period, setPeriod] = useState<Period>(initialPeriod);
+  const simulatedLoading = useSimulatedLoading(400);
+  const isRealData = Boolean(initialOrders.length > 0 || initialMetrics);
+  const loading = isRealData ? false : simulatedLoading;
 
-  const orders = state.orders;
+  const orders = initialOrders;
   const billable = orders.filter((o) => o.status !== "cancelled" && o.status !== "refunded");
 
-  const revenue = billable.reduce((sum, o) => sum + o.total, 0);
-  const pendingOrders = orders.filter(
-    (o) => o.status === "awaiting_payment" || o.status === "payment_submitted" || o.status === "pending_cod",
-  ).length;
-  const activeProducts = state.products.filter((p) => p.status === "active").length;
-  const totalUnits = state.products.reduce((sum, p) => sum + productTotalStock(p), 0);
+  const revenue = initialMetrics ? initialMetrics.totalRevenue : billable.reduce((sum, o) => sum + o.total, 0);
+  const pendingOrders = initialMetrics
+    ? initialMetrics.pendingOrders
+    : orders.filter(
+        (o) => o.status === "awaiting_payment" || o.status === "payment_submitted" || o.status === "pending_cod",
+      ).length;
+  const activeProducts = initialMetrics ? initialMetrics.activeProducts : 0;
+  const totalUnits = initialMetrics ? initialMetrics.totalUnits : 0;
+  const totalProductsCount = initialMetrics ? initialMetrics.totalProducts : 0;
 
   const previousPeriod = useMemo(() => {
     const now = Date.now();
@@ -92,7 +120,7 @@ export default function Dashboard() {
         now - +new Date(o.date) > span * 86400000 && now - +new Date(o.date) <= span * 2 * 86400000,
     );
     const previousTotal = previous.reduce((sum, o) => sum + o.total, 0);
-    const change = previousTotal === 0 ? 100 : ((currentTotal - previousTotal) / previousTotal) * 100;
+    const change = previousTotal === 0 ? (currentTotal > 0 ? 100 : 0) : ((currentTotal - previousTotal) / previousTotal) * 100;
     return { currentTotal, previousTotal, change };
   }, [billable, period]);
 
@@ -194,15 +222,8 @@ export default function Dashboard() {
   }, [billable]);
 
   const lowStock = useMemo(() => {
-    return state.products
-      .flatMap((product) =>
-        product.variants
-          .filter((v) => v.active && v.stock <= v.reorderLevel)
-          .map((v) => ({ product, variant: v })),
-      )
-      .sort((a, b) => a.variant.stock - b.variant.stock)
-      .slice(0, 6);
-  }, [state.products]);
+    return lowStockItems.slice(0, 6);
+  }, [lowStockItems]);
 
   const recentOrders = [...orders]
     .sort((a, b) => +new Date(b.date) - +new Date(a.date))
@@ -233,7 +254,7 @@ export default function Dashboard() {
     },
     {
       label: "Total products",
-      value: String(state.products.length),
+      value: String(totalProductsCount),
       hint: `${activeProducts} active · ${totalUnits} units in stock`,
       icon: Boxes,
       tone: "violet" as const,
@@ -320,7 +341,12 @@ export default function Dashboard() {
               {(Object.keys(PERIOD_LABEL) as Period[]).map((p) => (
                 <button
                   key={p}
-                  onClick={() => setPeriod(p)}
+                  onClick={() => {
+                    setPeriod(p);
+                    if (isRealData) {
+                      router.replace(`/?period=${p}`);
+                    }
+                  }}
                   className={cn(
                     "rounded px-2.5 py-1 text-[12px] font-medium transition-colors",
                     period === p

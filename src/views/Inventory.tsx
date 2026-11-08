@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -48,10 +49,10 @@ import { EmptyState } from "../components/shared/empty-state";
 import { Pagination } from "../components/shared/pagination";
 import { StockBadge } from "../components/shared/status-badges";
 import { useToast } from "../components/ui/toast";
-import { useStore } from "../data/store";
 import { formatDateTime, formatPKR } from "../lib/format";
 import { cn } from "../lib/utils";
-import type { InventoryMovementType, Product, ProductVariant } from "../lib/types";
+import type { InventoryMovement, InventoryMovementType, Product, ProductVariant } from "../lib/types";
+import { adjustStockAction } from "../actions/inventory";
 
 type StockFilter = "all" | "low" | "out" | "healthy";
 
@@ -63,8 +64,25 @@ const MOVEMENT_META: Record<InventoryMovementType, { label: string; variant: "su
   adjustment: { label: "Adjustment", variant: "danger" },
 };
 
-export default function InventoryPage() {
-  const { state, setVariantStock } = useStore();
+interface InventoryProps {
+  initialRows?: { product: Product; variant: ProductVariant }[];
+  initialMovements?: InventoryMovement[];
+  initialTotals?: {
+    units: number;
+    value: number;
+    low: number;
+    out: number;
+    reserved: number;
+    skus: number;
+  };
+}
+
+export default function InventoryPage({
+  initialRows = [],
+  initialMovements = [],
+  initialTotals,
+}: InventoryProps) {
+  const router = useRouter();
   const { toast } = useToast();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<StockFilter>("all");
@@ -75,15 +93,21 @@ export default function InventoryPage() {
   const [adjustQty, setAdjustQty] = useState(0);
   const [adjustReason, setAdjustReason] = useState("Restock from supplier");
   const [adjustNote, setAdjustNote] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const rows = useMemo(() => {
-    const list = state.products.flatMap((product) =>
-      product.variants.map((variant) => ({ product, variant })),
-    );
-    return list;
-  }, [state.products]);
+  const [rows, setRows] = useState(initialRows);
+  const [movements, setMovements] = useState(initialMovements);
+
+  useEffect(() => {
+    setRows(initialRows);
+  }, [initialRows]);
+
+  useEffect(() => {
+    setMovements(initialMovements);
+  }, [initialMovements]);
 
   const totals = useMemo(() => {
+    if (initialTotals) return initialTotals;
     const units = rows.reduce((sum, r) => sum + r.variant.stock, 0);
     const value = rows.reduce((sum, r) => sum + r.variant.stock * r.variant.price, 0);
     const low = rows.filter(
@@ -92,7 +116,7 @@ export default function InventoryPage() {
     const out = rows.filter((r) => r.variant.stock === 0).length;
     const reserved = rows.reduce((sum, r) => sum + r.variant.reserved, 0);
     return { units, value, low, out, reserved, skus: rows.length };
-  }, [rows]);
+  }, [rows, initialTotals]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -116,11 +140,6 @@ export default function InventoryPage() {
   const safePage = Math.min(page, pageCount);
   const visible = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
-  const movements = useMemo(
-    () => [...state.inventoryMovements].sort((a, b) => +new Date(b.at) - +new Date(a.at)),
-    [state.inventoryMovements],
-  );
-
   const openAdjust = (
     product: Product,
     variant: ProductVariant,
@@ -135,9 +154,10 @@ export default function InventoryPage() {
     setAdjustNote("");
   };
 
-  const applyAdjust = () => {
+  const applyAdjust = async () => {
     if (!adjustTarget) return;
     const { product, variant } = adjustTarget;
+
     const next =
       adjustMode === "set"
         ? adjustQty
@@ -148,14 +168,40 @@ export default function InventoryPage() {
       toast({ title: "Stock cannot go below zero", variant: "error" });
       return;
     }
-    const type: InventoryMovementType =
-      adjustMode === "add" ? "restock" : adjustMode === "remove" ? "adjustment" : "adjustment";
-    setVariantStock(product.id, variant.id, next, type, adjustReason, adjustNote || undefined);
-    toast({
-      title: "Inventory updated",
-      description: `${product.name} · ${variant.name} is now at ${next} units.`,
-    });
-    setAdjustTarget(null);
+
+    setIsSubmitting(true);
+    try {
+      const res = await adjustStockAction({
+        variantId: variant.id,
+        mode: adjustMode,
+        quantity: adjustQty,
+        reason: adjustMode === "add" ? "restock" : "adjustment",
+        notes: adjustNote ? `${adjustReason} - ${adjustNote}` : adjustReason,
+      });
+
+      if (res.success) {
+        toast({
+          title: "Inventory updated",
+          description: `${product.name} · ${variant.name} is now at ${next} units.`,
+        });
+        setAdjustTarget(null);
+        router.refresh();
+      } else {
+        toast({
+          title: "Failed to update inventory",
+          description: res.error || "An unexpected error occurred.",
+          variant: "error",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error adjusting stock",
+        description: err.message,
+        variant: "error",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const stats = [
@@ -219,43 +265,54 @@ export default function InventoryPage() {
                 </TabsTrigger>
               </TabsList>
 
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="flex flex-wrap items-center gap-2">
                 <SearchInput
                   value={query}
-                  onChange={(value) => {
-                    setQuery(value);
+                  onChange={(v) => {
+                    setQuery(v);
                     setPage(1);
                   }}
-                  placeholder="Search product, SKU, colour…"
-                  className="w-full sm:w-72"
+                  placeholder="Filter by product, SKU, colour…"
+                  className="w-full sm:w-64"
                 />
                 <Select
                   value={filter}
-                  onValueChange={(value) => {
-                    setFilter(value as StockFilter);
+                  onValueChange={(v) => {
+                    setFilter(v as StockFilter);
                     setPage(1);
                   }}
                 >
-                  <SelectTrigger className="w-full sm:w-[160px]">
+                  <SelectTrigger className="w-[150px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All stock</SelectItem>
-                    <SelectItem value="healthy">Healthy</SelectItem>
-                    <SelectItem value="low">Low stock</SelectItem>
+                    <SelectItem value="low">Low stock only</SelectItem>
                     <SelectItem value="out">Out of stock</SelectItem>
+                    <SelectItem value="healthy">Healthy stock</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
-            <TabsContent value="levels" className="mt-0">
+            <TabsContent value="levels" className="p-0">
               {visible.length === 0 ? (
                 <EmptyState
                   className="m-4"
                   icon={<SearchX className="h-5 w-5" />}
-                  title="No variants match"
-                  description="Adjust your search or stock filter to see more results."
+                  title="No variants found"
+                  description="Try adjusting your filter or search query."
+                  action={
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setQuery("");
+                        setFilter("all");
+                      }}
+                    >
+                      Clear filters
+                    </Button>
+                  }
                 />
               ) : (
                 <>
@@ -265,9 +322,10 @@ export default function InventoryPage() {
                         <TableHead>Product</TableHead>
                         <TableHead>Variant</TableHead>
                         <TableHead>SKU</TableHead>
-                        <TableHead className="text-right">Available</TableHead>
+                        <TableHead className="text-right">Price</TableHead>
+                        <TableHead className="text-right">On hand</TableHead>
                         <TableHead className="text-right">Reserved</TableHead>
-                        <TableHead className="text-right">Reorder</TableHead>
+                        <TableHead className="text-right">Available</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
@@ -277,11 +335,11 @@ export default function InventoryPage() {
                         const available = Math.max(0, variant.stock - variant.reserved);
                         return (
                           <TableRow key={variant.id}>
-                            <TableCell className="max-w-[220px] truncate text-ink">
+                            <TableCell className="font-medium text-ink">
                               {product.name}
                             </TableCell>
                             <TableCell>
-                              <span className="flex items-center gap-2">
+                              <span className="flex items-center gap-2 text-ink">
                                 <span
                                   className="h-3.5 w-3.5 rounded-full border border-line-strong"
                                   style={{ backgroundColor: variant.colorHex }}
@@ -290,31 +348,41 @@ export default function InventoryPage() {
                               </span>
                             </TableCell>
                             <TableCell className="font-mono text-[12px]">{variant.sku}</TableCell>
-                            <TableCell className="text-right font-medium text-ink tabular">
+                            <TableCell className="text-right tabular">{formatPKR(variant.price)}</TableCell>
+                            <TableCell className="text-right font-medium tabular text-ink">
+                              {variant.stock}
+                            </TableCell>
+                            <TableCell className="text-right tabular text-ink-muted">
+                              {variant.reserved}
+                            </TableCell>
+                            <TableCell className="text-right font-semibold tabular text-ink">
                               {available}
                             </TableCell>
-                            <TableCell className="text-right tabular">{variant.reserved}</TableCell>
-                            <TableCell className="text-right tabular">{variant.reorderLevel}</TableCell>
                             <TableCell>
-                              <StockBadge stock={variant.stock} reorderLevel={variant.reorderLevel} />
+                              <StockBadge
+                                stock={variant.stock}
+                                reorderLevel={variant.reorderLevel}
+                              />
                             </TableCell>
-                            <TableCell>
-                              <div className="flex justify-end gap-1.5">
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-1">
                                 <Button
-                                  variant="outline"
+                                  variant="ghost"
                                   size="sm"
                                   onClick={() => openAdjust(product, variant, "add")}
+                                  title="Add incoming stock"
                                 >
                                   <ArrowDownToLine className="h-3.5 w-3.5" />
                                   Restock
                                 </Button>
                                 <Button
                                   variant="ghost"
-                                  size="icon-sm"
+                                  size="sm"
                                   onClick={() => openAdjust(product, variant, "set")}
-                                  aria-label="Adjust stock"
+                                  title="Set exact stock level"
                                 >
                                   <PencilLine className="h-3.5 w-3.5" />
+                                  Count
                                 </Button>
                               </div>
                             </TableCell>
@@ -328,69 +396,68 @@ export default function InventoryPage() {
                     pageSize={pageSize}
                     total={filtered.length}
                     onPageChange={setPage}
-                    onPageSizeChange={(size) => {
-                      setPageSize(size);
+                    onPageSizeChange={(s) => {
+                      setPageSize(s);
                       setPage(1);
                     }}
-                    pageSizeOptions={[12, 25, 50]}
                   />
                 </>
               )}
             </TabsContent>
 
-            <TabsContent value="movements" className="mt-0">
+            <TabsContent value="movements" className="p-0">
               {movements.length === 0 ? (
                 <EmptyState
                   className="m-4"
-                  icon={<History className="h-5 w-5" />}
-                  title="No movements recorded"
-                  description="Stock adjustments, sales and returns will appear here."
+                  title="No movement history"
+                  description="Stock adjustments, orders and restocks will appear here."
                 />
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>When</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Product</TableHead>
+                      <TableHead>Date & time</TableHead>
+                      <TableHead>Item</TableHead>
                       <TableHead>SKU</TableHead>
-                      <TableHead className="text-right">Qty</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead className="text-right">Change</TableHead>
                       <TableHead>Reason</TableHead>
-                      <TableHead>By</TableHead>
+                      <TableHead>Notes</TableHead>
+                      <TableHead>Initiator</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {movements.map((movement) => {
-                      const meta = MOVEMENT_META[movement.type];
+                    {movements.map((m) => {
+                      const meta = MOVEMENT_META[m.type];
+                      const isPositive = m.quantity > 0;
                       return (
-                        <TableRow key={movement.id}>
-                          <TableCell className="whitespace-nowrap text-[12.5px]">
-                            {formatDateTime(movement.at)}
+                        <TableRow key={m.id}>
+                          <TableCell className="text-[12.5px] tabular text-ink-muted">
+                            {formatDateTime(m.at)}
                           </TableCell>
+                          <TableCell>
+                            <p className="font-medium text-ink">{m.productName}</p>
+                            <p className="text-[11.5px] text-ink-muted">
+                              {m.variantName}
+                            </p>
+                          </TableCell>
+                          <TableCell className="font-mono text-[12px]">{m.sku}</TableCell>
                           <TableCell>
                             <Badge variant={meta.variant}>{meta.label}</Badge>
                           </TableCell>
-                          <TableCell className="max-w-[220px] truncate">
-                            <span className="block truncate text-ink">{movement.productName}</span>
-                            <span className="text-[11.5px] text-ink-muted">{movement.variantName}</span>
-                          </TableCell>
-                          <TableCell className="font-mono text-[12px]">{movement.sku}</TableCell>
                           <TableCell
                             className={cn(
-                              "text-right font-medium tabular",
-                              movement.quantity >= 0 ? "text-emerald-700" : "text-rose-600",
+                              "text-right font-mono text-[13px] font-semibold tabular",
+                              isPositive ? "text-emerald-700" : "text-rose-700",
                             )}
                           >
-                            {movement.quantity >= 0 ? "+" : ""}
-                            {movement.quantity}
+                            {isPositive ? `+${m.quantity}` : m.quantity}
                           </TableCell>
-                          <TableCell>
-                            <span className="block text-ink-soft">{movement.reason}</span>
-                            {movement.note && (
-                              <span className="block text-[11.5px] text-ink-muted">{movement.note}</span>
-                            )}
+                          <TableCell className="text-[12.5px] text-ink">{m.reason}</TableCell>
+                          <TableCell className="max-w-[200px] truncate text-[12px] text-ink-muted">
+                            {m.note ?? "—"}
                           </TableCell>
-                          <TableCell className="text-[12.5px]">{movement.by}</TableCell>
+                          <TableCell className="text-[12.5px] text-ink-muted">{m.by}</TableCell>
                         </TableRow>
                       );
                     })}
@@ -406,102 +473,98 @@ export default function InventoryPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {adjustMode === "add" ? "Restock variant" : "Adjust stock"}
+              {adjustMode === "add"
+                ? "Restock inventory"
+                : adjustMode === "remove"
+                  ? "Deduct inventory"
+                  : "Set exact stock count"}
             </DialogTitle>
             <DialogDescription>
-              {adjustTarget
-                ? `${adjustTarget.product.name} — ${adjustTarget.variant.name} (${adjustTarget.variant.sku})`
-                : ""}
+              {adjustTarget && `${adjustTarget.product.name} · ${adjustTarget.variant.name}`}
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="space-y-4">
-            <div className="flex items-center justify-between rounded-lg border border-line bg-surface-muted/60 p-3">
+            <div>
+              <Label>Adjustment mode</Label>
+              <div className="mt-1.5 grid grid-cols-3 gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={adjustMode === "add" ? "default" : "outline"}
+                  onClick={() => setAdjustMode("add")}
+                >
+                  <ArrowDownToLine className="h-3.5 w-3.5" />
+                  Add
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={adjustMode === "remove" ? "default" : "outline"}
+                  onClick={() => setAdjustMode("remove")}
+                >
+                  <ArrowUpFromLine className="h-3.5 w-3.5" />
+                  Remove
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={adjustMode === "set" ? "default" : "outline"}
+                  onClick={() => setAdjustMode("set")}
+                >
+                  <PencilLine className="h-3.5 w-3.5" />
+                  Set count
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <p className="text-[12px] text-ink-muted">Current stock</p>
-                <p className="text-[18px] font-semibold text-ink tabular">
-                  {adjustTarget?.variant.stock ?? 0}
-                </p>
+                <Label htmlFor="current-stock">Current stock</Label>
+                <Input
+                  id="current-stock"
+                  disabled
+                  value={adjustTarget?.variant.stock ?? 0}
+                  className="bg-surface-muted"
+                />
               </div>
-              <ArrowUpFromLine className="h-5 w-5 text-ink-muted" />
-            </div>
-
-            <div>
-              <Label>Adjustment type</Label>
-              <div className="mt-2 flex gap-2">
-                {(
-                  [
-                    { value: "add", label: "Add stock" },
-                    { value: "remove", label: "Remove" },
-                    { value: "set", label: "Set exact" },
-                  ] as const
-                ).map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setAdjustMode(option.value)}
-                    className={cn(
-                      "flex-1 rounded-md border px-3 py-1.5 text-[12.5px] font-medium transition-colors",
-                      adjustMode === option.value
-                        ? "border-brand-500 bg-brand-50 text-brand-700"
-                        : "border-line-strong bg-surface text-ink-muted hover:text-ink-soft",
-                    )}
-                  >
-                    {option.label}
-                  </button>
-                ))}
+              <div>
+                <Label htmlFor="adjust-qty">
+                  {adjustMode === "set" ? "New quantity" : "Adjustment quantity"}
+                </Label>
+                <Input
+                  id="adjust-qty"
+                  type="number"
+                  min={0}
+                  value={adjustQty}
+                  onChange={(e) => setAdjustQty(Math.max(0, Number(e.target.value)))}
+                />
               </div>
             </div>
 
             <div>
-              <Label htmlFor="adjust-qty">
-                {adjustMode === "set" ? "New quantity" : "Quantity"}
-              </Label>
-              <Input
-                id="adjust-qty"
-                type="number"
-                min={0}
-                value={adjustQty}
-                onChange={(e) => setAdjustQty(Number(e.target.value))}
-              />
-              <p className="mt-1.5 text-[11.5px] text-ink-muted">
-                New stock level:{" "}
-                <span className="font-medium text-ink-soft tabular">
-                  {adjustTarget
-                    ? adjustMode === "set"
-                      ? adjustQty
-                      : adjustMode === "add"
-                        ? adjustTarget.variant.stock + adjustQty
-                        : adjustTarget.variant.stock - adjustQty
-                    : 0}
-                </span>
-              </p>
-            </div>
-
-            <div>
-              <Label htmlFor="adjust-reason">Reason</Label>
+              <Label>Reason</Label>
               <Select value={adjustReason} onValueChange={setAdjustReason}>
-                <SelectTrigger id="adjust-reason">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Restock from supplier">Restock from supplier</SelectItem>
                   <SelectItem value="Manual adjustment">Manual adjustment</SelectItem>
                   <SelectItem value="Stock count correction">Stock count correction</SelectItem>
-                  <SelectItem value="Damaged in storage">Damaged in storage</SelectItem>
-                  <SelectItem value="Returned to stock">Returned to stock</SelectItem>
-                  <SelectItem value="Order cancelled">Order cancelled</SelectItem>
+                  <SelectItem value="Damaged / write-off">Damaged / write-off</SelectItem>
+                  <SelectItem value="Customer exchange">Customer exchange</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div>
-              <Label htmlFor="adjust-note">Note (optional)</Label>
+              <Label htmlFor="adjust-note">Internal notes (optional)</Label>
               <Textarea
                 id="adjust-note"
                 rows={2}
                 value={adjustNote}
                 onChange={(e) => setAdjustNote(e.target.value)}
-                placeholder="Add a reference such as a PO or delivery challan number"
+                placeholder="Reference PO number, courier bag or batch tag…"
               />
             </div>
           </DialogBody>
@@ -509,7 +572,9 @@ export default function InventoryPage() {
             <Button variant="outline" onClick={() => setAdjustTarget(null)}>
               Cancel
             </Button>
-            <Button onClick={applyAdjust}>Apply adjustment</Button>
+            <Button onClick={applyAdjust} disabled={isSubmitting}>
+              {isSubmitting ? "Applying..." : "Apply adjustment"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

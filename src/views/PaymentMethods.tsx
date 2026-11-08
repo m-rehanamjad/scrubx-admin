@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Banknote,
   Building2,
@@ -28,10 +29,9 @@ import {
 } from "../components/ui/dialog";
 import { PageHeader } from "../components/shared/page-header";
 import { useToast } from "../components/ui/toast";
-import { useStore } from "../data/store";
-import { formatPKR } from "../lib/format";
 import { cn } from "../lib/utils";
 import type { PaymentMethod } from "../lib/types";
+import { updatePaymentMethodAction } from "../actions/payment-methods";
 
 const METHOD_ICON: Record<string, React.ElementType> = {
   jazzcash: Smartphone,
@@ -39,15 +39,74 @@ const METHOD_ICON: Record<string, React.ElementType> = {
   sadapay: Wallet,
   nayapay: Wallet,
   bank: Building2,
+  bank_transfer: Building2,
   cod: Banknote,
 };
 
-export default function PaymentMethodsPage() {
-  const { state, savePaymentMethod } = useStore();
-  const { toast } = useToast();
-  const [editing, setEditing] = useState<PaymentMethod | null>(null);
+interface PaymentMethodsProps {
+  initialMethods?: PaymentMethod[];
+  paymentDeadlineHours?: number;
+}
 
-  const methods = [...state.paymentMethods].sort((a, b) => a.displayOrder - b.displayOrder);
+export default function PaymentMethodsPage({
+  initialMethods = [],
+  paymentDeadlineHours = 24,
+}: PaymentMethodsProps) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [methods, setMethods] = useState<PaymentMethod[]>(initialMethods);
+  const [editing, setEditing] = useState<PaymentMethod | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setMethods(initialMethods);
+  }, [initialMethods]);
+
+  const sortedMethods = [...methods].sort((a, b) => a.displayOrder - b.displayOrder);
+
+  const handleSave = async (method: PaymentMethod) => {
+    setIsSubmitting(true);
+    const targetId = method.dbId || method.id;
+
+    try {
+      const res = await updatePaymentMethodAction({
+        id: targetId,
+        name: method.name.trim(),
+        accountTitle: method.accountTitle?.trim() || null,
+        accountNumber: method.accountNumber?.trim() || null,
+        bankName: method.bankName?.trim() || null,
+        iban: method.iban?.trim() || null,
+        instructions: method.instructions?.trim() || null,
+        allowedWithEngraving: Boolean(method.allowEngraving),
+        supportsProof: Boolean(method.supportsProof),
+        isActive: Boolean(method.active),
+        sortOrder: Number(method.displayOrder),
+      });
+
+      if (res.success) {
+        toast({
+          title: "Payment method updated",
+          description: `${method.name} settings saved.`,
+        });
+        setEditing(null);
+        router.refresh();
+      } else {
+        toast({
+          title: "Failed to update payment method",
+          description: res.error || "An unexpected error occurred",
+          variant: "error",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error saving payment method",
+        description: err.message || "An unexpected error occurred",
+        variant: "error",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -70,7 +129,7 @@ export default function PaymentMethodsPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {methods.map((method) => {
+        {sortedMethods.map((method) => {
           const Icon = METHOD_ICON[method.id] ?? Wallet;
           return (
             <Card key={method.id} className={cn(!method.active && "opacity-70")}>
@@ -106,17 +165,17 @@ export default function PaymentMethodsPage() {
                 <dl className="mt-4 grid gap-3 sm:grid-cols-2">
                   <div>
                     <dt className="text-[11.5px] text-ink-muted">Account title</dt>
-                    <dd className="mt-0.5 text-[13px] font-medium text-ink">{method.accountTitle}</dd>
+                    <dd className="mt-0.5 text-[13px] font-medium text-ink">{method.accountTitle || "—"}</dd>
                   </div>
                   <div>
                     <dt className="text-[11.5px] text-ink-muted">
                       {method.id === "bank" ? "Account number" : "Wallet number"}
                     </dt>
                     <dd className="mt-0.5 font-mono text-[13px] font-medium text-ink">
-                      {method.accountNumber}
+                      {method.accountNumber || "—"}
                     </dd>
                   </div>
-                  {method.bankName !== "—" && (
+                  {method.bankName && method.bankName !== "—" && (
                     <div>
                       <dt className="text-[11.5px] text-ink-muted">Bank / provider</dt>
                       <dd className="mt-0.5 text-[13px] text-ink-soft">{method.bankName}</dd>
@@ -167,7 +226,7 @@ export default function PaymentMethodsPage() {
                 Store Settings
               </a>
               . Unpaid orders are automatically cancelled after the deadline. Current default:{" "}
-              <span className="font-medium text-ink">{state.settings.paymentDeadlineHours} hours</span>
+              <span className="font-medium text-ink">{paymentDeadlineHours} hours</span>
               .
             </p>
           </div>
@@ -176,15 +235,9 @@ export default function PaymentMethodsPage() {
 
       <PaymentMethodDialog
         method={editing}
+        isSubmitting={isSubmitting}
         onClose={() => setEditing(null)}
-        onSave={(method) => {
-          savePaymentMethod(method);
-          toast({
-            title: "Payment method updated",
-            description: `${method.name} settings saved.`,
-          });
-          setEditing(null);
-        }}
+        onSave={handleSave}
       />
     </div>
   );
@@ -192,10 +245,12 @@ export default function PaymentMethodsPage() {
 
 function PaymentMethodDialog({
   method,
+  isSubmitting,
   onClose,
   onSave,
 }: {
   method: PaymentMethod | null;
+  isSubmitting: boolean;
   onClose: () => void;
   onSave: (method: PaymentMethod) => void;
 }) {
@@ -325,10 +380,12 @@ function PaymentMethodDialog({
           </div>
         </DialogBody>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button onClick={() => onSave(draft)}>Save changes</Button>
+          <Button onClick={() => onSave(draft)} disabled={isSubmitting}>
+            {isSubmitting ? "Saving..." : "Save changes"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

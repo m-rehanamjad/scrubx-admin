@@ -13,6 +13,7 @@ export interface ProductImage {
   /** null => shared image used when no specific colour is selected */
   colorId: ID | null;
   isMain: boolean;
+  fileId?: string; // ImageKit file ID for deletion & management
 }
 
 export interface ProductVariant {
@@ -63,6 +64,7 @@ export interface Category {
   parentId: ID | null;
   description: string;
   image: string;
+  imageFileId?: string; // ImageKit file ID
   status: "active" | "inactive";
   sortOrder: number;
 }
@@ -156,6 +158,15 @@ export interface Order {
   status: OrderStatus;
   paymentStatus: PaymentStatus;
   paymentMethod: PaymentMethodId;
+  paymentMethodName?: string;
+  paymentId?: string;
+  proofUrl?: string;
+  senderName?: string;
+  senderAccountLast4?: string;
+  paidAt?: string;
+  verifiedAt?: string;
+  verifiedByName?: string;
+  rejectionReason?: string;
   transactionRef?: string;
   couponCode?: string;
   shippingAddress: Address;
@@ -198,6 +209,7 @@ export interface Coupon {
 
 export interface PaymentMethod {
   id: PaymentMethodId;
+  dbId?: string;
   name: string;
   description: string;
   accountTitle: string;

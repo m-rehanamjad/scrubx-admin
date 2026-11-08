@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -30,8 +31,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs"
 import { PageHeader } from "../components/shared/page-header";
 import { ConfirmDialog } from "../components/shared/confirm-dialog";
 import { useToast } from "../components/ui/toast";
-import { useStore } from "../data/store";
 import { cn } from "../lib/utils";
+import { updateStoreSettingsBatchAction } from "../actions/settings";
 
 const settingsSchema = z.object({
   storeName: z.string().min(2, "Store name is required"),
@@ -48,25 +49,61 @@ const settingsSchema = z.object({
 
 type SettingsForm = z.infer<typeof settingsSchema>;
 
-export default function SettingsPage() {
-  const { state, updateSettings, resetDemoData } = useStore();
+export interface SettingsData {
+  storeName: string;
+  tagline: string;
+  supportEmail: string;
+  supportPhone: string;
+  whatsapp: string;
+  address: string;
+  city: string;
+  province: string;
+  postcode: string;
+  paymentDeadlineHours: number;
+  defaultShippingMethodId?: string;
+  orderConfirmationAuto: boolean;
+  lowStockAlerts: boolean;
+  newOrderEmail: boolean;
+  newOrderWhatsapp: boolean;
+  paymentSubmittedAlert: boolean;
+  dailySummary: boolean;
+}
+
+interface SettingsPageProps {
+  initialSettings: SettingsData;
+  shippingMethods?: Array<{ id: string; name: string }>;
+  counts?: {
+    products: number;
+    orders: number;
+    customers: number;
+  };
+}
+
+export default function SettingsPage({
+  initialSettings,
+  shippingMethods = [],
+  counts = { products: 0, orders: 0, customers: 0 },
+}: SettingsPageProps) {
+  const router = useRouter();
   const { toast } = useToast();
   const [confirmReset, setConfirmReset] = useState(false);
+  const [settingsState, setSettingsState] = useState<SettingsData>(initialSettings);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<SettingsForm>({
     resolver: zodResolver(settingsSchema),
     mode: "onBlur",
     defaultValues: {
-      storeName: state.settings.storeName,
-      tagline: state.settings.tagline,
-      supportEmail: state.settings.supportEmail,
-      supportPhone: state.settings.supportPhone,
-      whatsapp: state.settings.whatsapp,
-      address: state.settings.address,
-      city: state.settings.city,
-      province: state.settings.province,
-      postcode: state.settings.postcode,
-      paymentDeadlineHours: state.settings.paymentDeadlineHours,
+      storeName: initialSettings.storeName,
+      tagline: initialSettings.tagline,
+      supportEmail: initialSettings.supportEmail,
+      supportPhone: initialSettings.supportPhone,
+      whatsapp: initialSettings.whatsapp,
+      address: initialSettings.address,
+      city: initialSettings.city,
+      province: initialSettings.province,
+      postcode: initialSettings.postcode,
+      paymentDeadlineHours: initialSettings.paymentDeadlineHours,
     },
   });
 
@@ -74,26 +111,134 @@ export default function SettingsPage() {
   const values = watch();
 
   useEffect(() => {
+    setSettingsState(initialSettings);
     reset({
-      storeName: state.settings.storeName,
-      tagline: state.settings.tagline,
-      supportEmail: state.settings.supportEmail,
-      supportPhone: state.settings.supportPhone,
-      whatsapp: state.settings.whatsapp,
-      address: state.settings.address,
-      city: state.settings.city,
-      province: state.settings.province,
-      postcode: state.settings.postcode,
-      paymentDeadlineHours: state.settings.paymentDeadlineHours,
+      storeName: initialSettings.storeName,
+      tagline: initialSettings.tagline,
+      supportEmail: initialSettings.supportEmail,
+      supportPhone: initialSettings.supportPhone,
+      whatsapp: initialSettings.whatsapp,
+      address: initialSettings.address,
+      city: initialSettings.city,
+      province: initialSettings.province,
+      postcode: initialSettings.postcode,
+      paymentDeadlineHours: initialSettings.paymentDeadlineHours,
     });
-  }, [reset, state.settings]);
+  }, [reset, initialSettings]);
 
-  const onSubmit = (data: SettingsForm) => {
-    updateSettings(data);
-    toast({
-      title: "Settings saved",
-      description: "Store configuration has been updated.",
-    });
+  const onSubmit = async (data: SettingsForm) => {
+    setIsSubmitting(true);
+    try {
+      const res = await updateStoreSettingsBatchAction({
+        store_name: data.storeName.trim(),
+        tagline: data.tagline.trim(),
+        support_email: data.supportEmail.trim(),
+        support_phone: data.supportPhone.trim(),
+        whatsapp_number: data.whatsapp.trim(),
+        address: data.address.trim(),
+        city: data.city.trim(),
+        province: data.province.trim(),
+        postal_code: data.postcode.trim(),
+        payment_deadline_hours: Number(data.paymentDeadlineHours),
+      });
+
+      if (res.success) {
+        toast({
+          title: "Settings saved",
+          description: "Store configuration has been updated.",
+        });
+        router.refresh();
+      } else {
+        toast({
+          title: "Failed to save settings",
+          description: res.error || "An unexpected error occurred",
+          variant: "error",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error saving settings",
+        description: err.message || "An unexpected error occurred",
+        variant: "error",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleToggle = async (
+    title: string,
+    key:
+      | "orderConfirmationAuto"
+      | "lowStockAlerts"
+      | "newOrderEmail"
+      | "newOrderWhatsapp"
+      | "paymentSubmittedAlert"
+      | "dailySummary",
+    checked: boolean,
+  ) => {
+    const backendKeyMap: Record<string, string> = {
+      orderConfirmationAuto: "order_confirmation_auto",
+      lowStockAlerts: "low_stock_alerts",
+      newOrderEmail: "new_order_email",
+      newOrderWhatsapp: "new_order_whatsapp",
+      paymentSubmittedAlert: "payment_submitted_alert",
+      dailySummary: "daily_summary",
+    };
+    const bKey = backendKeyMap[key];
+    if (!bKey) return;
+
+    setSettingsState((prev) => ({ ...prev, [key]: checked }));
+
+    try {
+      const res = await updateStoreSettingsBatchAction({
+        [bKey]: checked,
+      });
+
+      if (res.success) {
+        toast({ title: checked ? `${title} enabled` : `${title} disabled` });
+        router.refresh();
+      } else {
+        setSettingsState((prev) => ({ ...prev, [key]: !checked }));
+        toast({
+          title: "Failed to update setting",
+          description: res.error || "An unexpected error occurred",
+          variant: "error",
+        });
+      }
+    } catch (err: any) {
+      setSettingsState((prev) => ({ ...prev, [key]: !checked }));
+      toast({
+        title: "Error updating setting",
+        description: err.message || "An unexpected error occurred",
+        variant: "error",
+      });
+    }
+  };
+
+  const handleDefaultShippingChange = async (methodId: string) => {
+    setSettingsState((prev) => ({ ...prev, defaultShippingMethodId: methodId }));
+    try {
+      const res = await updateStoreSettingsBatchAction({
+        default_shipping_method_id: methodId,
+      });
+      if (res.success) {
+        toast({ title: "Default shipping method updated" });
+        router.refresh();
+      } else {
+        toast({
+          title: "Failed to update default shipping method",
+          description: res.error || "An unexpected error occurred",
+          variant: "error",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error updating default shipping method",
+        description: err.message || "An unexpected error occurred",
+        variant: "error",
+      });
+    }
   };
 
   const toggleRow = (
@@ -113,11 +258,8 @@ export default function SettingsPage() {
         <p className="mt-0.5 text-[12px] text-ink-muted">{description}</p>
       </div>
       <Switch
-        checked={state.settings[key]}
-        onCheckedChange={(checked) => {
-          updateSettings({ [key]: checked });
-          toast({ title: checked ? `${title} enabled` : `${title} disabled` });
-        }}
+        checked={settingsState[key]}
+        onCheckedChange={(checked) => handleToggle(title, key, checked)}
         aria-label={title}
       />
     </div>
@@ -130,9 +272,9 @@ export default function SettingsPage() {
         title="Store settings"
         description="General store information, payment deadlines and notification preferences."
         actions={
-          <Badge variant="neutral">
+          <Badge variant="success">
             <Settings2 className="h-3 w-3" />
-            Prototype mode · saved locally
+            Live Database Connected
           </Badge>
         }
       />
@@ -254,12 +396,12 @@ export default function SettingsPage() {
             </Card>
 
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => reset()}>
+              <Button type="button" variant="outline" onClick={() => reset()} disabled={isSubmitting}>
                 Discard changes
               </Button>
-              <Button type="submit">
+              <Button type="submit" disabled={isSubmitting}>
                 <Save className="h-4 w-4" />
-                Save settings
+                {isSubmitting ? "Saving..." : "Save settings"}
               </Button>
             </div>
           </form>
@@ -297,17 +439,14 @@ export default function SettingsPage() {
                 <div>
                   <Label>Default shipping method</Label>
                   <Select
-                    value={state.settings.defaultShippingMethodId}
-                    onValueChange={(value) => {
-                      updateSettings({ defaultShippingMethodId: value });
-                      toast({ title: "Default shipping method updated" });
-                    }}
+                    value={settingsState.defaultShippingMethodId ?? ""}
+                    onValueChange={handleDefaultShippingChange}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Select shipping method" />
                     </SelectTrigger>
                     <SelectContent>
-                      {state.shippingMethods.map((method) => (
+                      {shippingMethods.map((method) => (
                         <SelectItem key={method.id} value={method.id}>
                           {method.name}
                         </SelectItem>
@@ -372,18 +511,17 @@ export default function SettingsPage() {
         <TabsContent value="data">
           <Card>
             <CardHeader>
-              <h2 className="text-[15px] font-semibold text-ink">Prototype data</h2>
+              <h2 className="text-[15px] font-semibold text-ink">Database statistics</h2>
               <p className="text-[12.5px] text-ink-muted">
-                This panel is a front-end prototype. Every change is stored in your browser&apos;s
-                local storage — there is no backend, API or database.
+                Current record counts stored in Supabase PostgreSQL production database.
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-3">
                 {[
-                  { label: "Products", value: state.products.length },
-                  { label: "Orders", value: state.orders.length },
-                  { label: "Customers", value: state.customers.length },
+                  { label: "Products", value: counts.products },
+                  { label: "Orders", value: counts.orders },
+                  { label: "Customers", value: counts.customers },
                 ].map((item) => (
                   <div
                     key={item.label}
@@ -395,15 +533,20 @@ export default function SettingsPage() {
                 ))}
               </div>
 
-              <div className={cn("rounded-lg border border-rose-200 bg-rose-50/70 p-4")}>
-                <p className="text-[13px] font-semibold text-rose-900">Reset demo data</p>
-                <p className="mt-1 text-[12.5px] text-rose-800">
-                  Restores the original catalogue, orders, customers and inventory. Any edits you
-                  have made in this session will be lost.
+              <div className={cn("rounded-lg border border-amber-200 bg-amber-50/70 p-4")}>
+                <p className="text-[13px] font-semibold text-amber-900">Database administration</p>
+                <p className="mt-1 text-[12.5px] text-amber-800">
+                  Data operations are persisted directly to Supabase PostgreSQL with automated audit
+                  logs and transactional rollback protection.
                 </p>
-                <Button variant="danger" size="sm" className="mt-3" onClick={() => setConfirmReset(true)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 border-amber-300 text-amber-900 hover:bg-amber-100"
+                  onClick={() => setConfirmReset(true)}
+                >
                   <RotateCcw className="h-3.5 w-3.5" />
-                  Reset everything
+                  Database reset information
                 </Button>
               </div>
             </CardContent>
@@ -414,13 +557,12 @@ export default function SettingsPage() {
       <ConfirmDialog
         open={confirmReset}
         onOpenChange={setConfirmReset}
-        title="Reset demo data?"
-        description="All local changes will be replaced with the original mock data."
-        confirmLabel="Reset data"
-        destructive
+        title="Database administration"
+        description="Database resetting is guarded by migrations and seeding scripts. To reseed the database, run npm run db:seed via administrative CLI."
+        confirmLabel="Understood"
         onConfirm={() => {
-          resetDemoData();
-          toast({ title: "Demo data restored", description: "The original mock data is back." });
+          setConfirmReset(false);
+          toast({ title: "Database active", description: "Use npm run db:seed for administrative resets." });
         }}
       />
     </div>

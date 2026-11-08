@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 import {
   FolderTree,
   MoreHorizontal,
@@ -51,10 +53,16 @@ import { Switch } from "../components/ui/switch";
 import { PageHeader } from "../components/shared/page-header";
 import { ConfirmDialog } from "../components/shared/confirm-dialog";
 import { EmptyState } from "../components/shared/empty-state";
+import { ImageUpload } from "../components/shared/image-upload";
 import { useToast } from "../components/ui/toast";
-import { useStore } from "../data/store";
 import { slugify, uid } from "../lib/utils";
 import type { Category } from "../lib/types";
+import {
+  createCategoryAction,
+  updateCategoryAction,
+  deleteCategoryAction,
+  toggleCategoryStatusAction,
+} from "../actions/categories";
 
 const CATEGORY_IMAGES = [
   "/products/scrubs-teal.jpg",
@@ -67,29 +75,43 @@ const CATEGORY_IMAGES = [
   "/products/bp-monitor.jpg",
 ];
 
-export default function CategoriesPage() {
-  const { state, saveCategory, deleteCategory, toggleCategoryStatus } = useStore();
+interface CategoriesProps {
+  initialCategories?: Category[];
+  initialCounts?: Record<string, number>;
+}
+
+export default function CategoriesPage({
+  initialCategories = [],
+  initialCounts = {},
+}: CategoriesProps) {
+  const router = useRouter();
   const { toast } = useToast();
+  const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [editing, setEditing] = useState<Category | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setCategories(initialCategories);
+  }, [initialCategories]);
 
   const productCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    state.products.forEach((product) => {
-      counts.set(product.categoryId, (counts.get(product.categoryId) ?? 0) + 1);
+    const map = new Map<string, number>();
+    Object.entries(initialCounts).forEach(([catId, count]) => {
+      map.set(catId, count);
     });
-    return counts;
-  }, [state.products]);
+    return map;
+  }, [initialCounts]);
 
   const rows = useMemo(() => {
-    const parents = state.categories
+    const parents = categories
       .filter((c) => !c.parentId)
       .sort((a, b) => a.sortOrder - b.sortOrder);
     const result: { category: Category; depth: number; count: number }[] = [];
     parents.forEach((parent) => {
       result.push({ category: parent, depth: 0, count: productCounts.get(parent.id) ?? 0 });
-      state.categories
+      categories
         .filter((c) => c.parentId === parent.id)
         .sort((a, b) => a.sortOrder - b.sortOrder)
         .forEach((child) => {
@@ -101,7 +123,7 @@ export default function CategoriesPage() {
         });
     });
     return result;
-  }, [state.categories, productCounts]);
+  }, [categories, productCounts]);
 
   const openCreate = () => {
     setEditing({
@@ -112,7 +134,7 @@ export default function CategoriesPage() {
       description: "",
       image: CATEGORY_IMAGES[0],
       status: "active",
-      sortOrder: state.categories.length + 1,
+      sortOrder: categories.length + 1,
     });
     setDialogOpen(true);
   };
@@ -122,13 +144,127 @@ export default function CategoriesPage() {
     setDialogOpen(true);
   };
 
-  const handleSave = (category: Category) => {
-    saveCategory({ ...category, slug: slugify(category.name) || category.slug });
-    toast({
-      title: editing && editing.name !== category.name ? "Category updated" : "Category created",
-      description: `${category.name} saved.`,
-    });
-    setDialogOpen(false);
+  const handleSave = async (category: Category) => {
+    setIsSubmitting(true);
+    const isExisting = categories.some((c) => c.id === category.id);
+    const generatedSlug = slugify(category.name) || category.slug;
+
+    try {
+      if (isExisting) {
+        const res = await updateCategoryAction({
+          id: category.id,
+          name: category.name,
+          slug: generatedSlug,
+          parentId: category.parentId || null,
+          description: category.description || null,
+          imageUrl: category.image || null,
+          imageFileId: category.imageFileId || null,
+          sortOrder: category.sortOrder,
+          isActive: category.status === "active",
+        });
+
+        if (res.success) {
+          toast({
+            title: "Category updated",
+            description: `${category.name} saved.`,
+          });
+          setDialogOpen(false);
+          router.refresh();
+        } else {
+          toast({
+            title: "Failed to update category",
+            description: res.error || "An unexpected error occurred.",
+            variant: "error",
+          });
+        }
+      } else {
+        const res = await createCategoryAction({
+          name: category.name,
+          slug: generatedSlug,
+          parentId: category.parentId || null,
+          description: category.description || null,
+          imageUrl: category.image || null,
+          imageFileId: category.imageFileId || null,
+          sortOrder: category.sortOrder,
+          isActive: category.status === "active",
+        });
+
+        if (res.success) {
+          toast({
+            title: "Category created",
+            description: `${category.name} created.`,
+          });
+          setDialogOpen(false);
+          router.refresh();
+        } else {
+          toast({
+            title: "Failed to create category",
+            description: res.error || "An unexpected error occurred.",
+            variant: "error",
+          });
+        }
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error saving category",
+        description: err.message || "Failed to communicate with server.",
+        variant: "error",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleToggleStatus = async (category: Category) => {
+    try {
+      const res = await toggleCategoryStatusAction({ id: category.id });
+      if (res.success) {
+        toast({
+          title: category.status === "active" ? "Category deactivated" : "Category activated",
+          description: `${category.name} is now ${category.status === "active" ? "inactive" : "active"}.`,
+        });
+        router.refresh();
+      } else {
+        toast({
+          title: "Failed to toggle status",
+          description: res.error || "Could not update status.",
+          variant: "error",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error updating status",
+        description: err.message,
+        variant: "error",
+      });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      const res = await deleteCategoryAction({ id: deleteTarget.id });
+      if (res.success) {
+        toast({
+          title: "Category deleted",
+          description: `${deleteTarget.name} has been removed.`,
+        });
+        setDeleteTarget(null);
+        router.refresh();
+      } else {
+        toast({
+          title: "Failed to delete category",
+          description: res.error || "Could not delete category.",
+          variant: "error",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error deleting category",
+        description: err.message,
+        variant: "error",
+      });
+    }
   };
 
   return (
@@ -175,12 +311,20 @@ export default function CategoriesPage() {
                         className="flex items-center gap-3"
                         style={{ paddingLeft: depth ? 24 : 0 }}
                       >
-                        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-line bg-surface-muted">
-                          <img
-                            src={category.image}
-                            alt={category.name}
-                            className="h-full w-full object-cover"
-                          />
+                        <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-line bg-surface-muted">
+                          {category.image ? (
+                            <Image
+                              src={category.image}
+                              alt={category.name}
+                              fill
+                              sizes="44px"
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-ink-muted">
+                              <FolderTree className="h-5 w-5" />
+                            </div>
+                          )}
                         </div>
                         <div className="min-w-0">
                           <p className="flex items-center gap-1.5 text-[13px] font-medium text-ink">
@@ -193,7 +337,7 @@ export default function CategoriesPage() {
                     </TableCell>
                     <TableCell>
                       {category.parentId
-                        ? state.categories.find((c) => c.id === category.parentId)?.name ?? "—"
+                        ? categories.find((c) => c.id === category.parentId)?.name ?? "—"
                         : "Top level"}
                     </TableCell>
                     <TableCell className="text-right tabular">{count}</TableCell>
@@ -216,7 +360,7 @@ export default function CategoriesPage() {
                             <Pencil className="h-3.5 w-3.5" />
                             Edit category
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => toggleCategoryStatus(category.id)}>
+                          <DropdownMenuItem onClick={() => handleToggleStatus(category)}>
                             {category.status === "active" ? (
                               <>
                                 <PowerOff className="h-3.5 w-3.5" />
@@ -249,8 +393,9 @@ export default function CategoriesPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         category={editing}
-        categories={state.categories}
+        categories={categories}
         onSave={handleSave}
+        isSubmitting={isSubmitting}
       />
 
       <ConfirmDialog
@@ -264,11 +409,7 @@ export default function CategoriesPage() {
         }
         confirmLabel="Delete category"
         destructive
-        onConfirm={() => {
-          if (!deleteTarget) return;
-          deleteCategory(deleteTarget.id);
-          toast({ title: "Category deleted", variant: "error" });
-        }}
+        onConfirm={handleDelete}
       />
     </div>
   );
@@ -280,12 +421,14 @@ function CategoryDialog({
   category,
   categories,
   onSave,
+  isSubmitting = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   category: Category | null;
   categories: Category[];
   onSave: (category: Category) => void;
+  isSubmitting?: boolean;
 }) {
   const { toast } = useToast();
   const [draft, setDraft] = useState<Category | null>(category);
@@ -360,21 +503,51 @@ function CategoryDialog({
             </div>
           </div>
 
-          <div>
-            <Label>Category image</Label>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {CATEGORY_IMAGES.map((src) => (
-                <button
-                  key={src}
-                  type="button"
-                  onClick={() => setDraft({ ...draft, image: src })}
-                  className={`h-14 w-14 overflow-hidden rounded-md border-2 transition-all ${
-                    draft.image === src ? "border-brand-500" : "border-line"
-                  }`}
-                >
-                  <img src={src} alt="" className="h-full w-full object-cover" />
-                </button>
-              ))}
+          <div className="space-y-3">
+            <ImageUpload
+              label="Category image"
+              helperText="Upload category card/banner image to ImageKit."
+              folder="/scrubx/categories"
+              multiple={false}
+              value={draft.image ? { url: draft.image, fileId: draft.imageFileId } : undefined}
+              onUploadSuccess={(media) => {
+                const item = Array.isArray(media) ? media[0] : media;
+                if (item) {
+                  setDraft((prev) =>
+                    prev ? { ...prev, image: item.url, imageFileId: item.fileId } : prev
+                  );
+                }
+              }}
+              onRemove={() => {
+                setDraft((prev) =>
+                  prev ? { ...prev, image: "", imageFileId: undefined } : prev
+                );
+              }}
+              allowUrlInput={true}
+            />
+
+            <div>
+              <Label className="text-[11.5px] font-medium uppercase tracking-wider text-ink-muted">
+                Or pick from presets
+              </Label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {CATEGORY_IMAGES.map((src) => (
+                  <button
+                    key={src}
+                    type="button"
+                    onClick={() =>
+                      setDraft((prev) =>
+                        prev ? { ...prev, image: src, imageFileId: undefined } : prev
+                      )
+                    }
+                    className={`relative h-14 w-14 overflow-hidden rounded-md border-2 transition-all ${
+                      draft.image === src ? "border-brand-500 ring-2 ring-brand-100" : "border-line"
+                    }`}
+                  >
+                    <Image src={src} alt="" fill sizes="56px" className="object-cover" />
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -398,7 +571,7 @@ function CategoryDialog({
             Cancel
           </Button>
           <Button
-            disabled={!draft.name.trim()}
+            disabled={!draft.name.trim() || isSubmitting}
             onClick={() => {
               if (!draft.name.trim()) {
                 toast({ title: "Category name is required", variant: "error" });
@@ -407,7 +580,7 @@ function CategoryDialog({
               onSave(draft);
             }}
           >
-            {category?.name ? "Save changes" : "Create category"}
+            {isSubmitting ? "Saving..." : category?.name ? "Save changes" : "Create category"}
           </Button>
         </DialogFooter>
       </DialogContent>

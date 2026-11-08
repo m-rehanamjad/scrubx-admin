@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { SearchX, UserRound, Users } from "lucide-react";
 import { Card, CardContent } from "../components/ui/card";
@@ -26,16 +26,32 @@ import { SearchInput } from "../components/shared/search-input";
 import { EmptyState } from "../components/shared/empty-state";
 import { Pagination } from "../components/shared/pagination";
 import { Avatar } from "../components/shared/thumb";
-import { useSimulatedLoading } from "../components/shared/use-simulated-loading";
-import { TableSkeleton } from "../components/ui/skeleton";
-import { useStore } from "../data/store";
 import { formatDate, formatPKR } from "../lib/format";
+import type { Customer } from "../lib/types";
 
 type SortKey = "newest" | "spend-desc" | "orders-desc" | "name";
 
-export default function CustomersPage() {
-  const { state } = useStore();
-  const loading = useSimulatedLoading(300);
+interface CustomersProps {
+  initialCustomers?: Customer[];
+  initialCustomerStats?: Record<string, { orders: number; spend: number }>;
+  initialRegisteredCount?: number;
+  initialGuestCount?: number;
+  initialLifetimeValue?: number;
+}
+
+export default function CustomersPage({
+  initialCustomers = [],
+  initialCustomerStats = {},
+  initialRegisteredCount = 0,
+  initialGuestCount = 0,
+  initialLifetimeValue = 0,
+}: CustomersProps) {
+  const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
+
+  useEffect(() => {
+    setCustomers(initialCustomers);
+  }, [initialCustomers]);
+
   const [query, setQuery] = useState("");
   const [type, setType] = useState<"all" | "registered" | "guest">("all");
   const [sort, setSort] = useState<SortKey>("newest");
@@ -44,19 +60,15 @@ export default function CustomersPage() {
 
   const stats = useMemo(() => {
     const map = new Map<string, { orders: number; spend: number }>();
-    state.orders.forEach((order) => {
-      if (!order.customerId) return;
-      const entry = map.get(order.customerId) ?? { orders: 0, spend: 0 };
-      entry.orders += 1;
-      if (order.status !== "cancelled") entry.spend += order.total;
-      map.set(order.customerId, entry);
+    Object.entries(initialCustomerStats).forEach(([id, s]) => {
+      map.set(id, s);
     });
     return map;
-  }, [state.orders]);
+  }, [initialCustomerStats]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = state.customers.filter((customer) => {
+    const list = customers.filter((customer) => {
       const matchesQuery =
         !q ||
         customer.name.toLowerCase().includes(q) ||
@@ -83,15 +95,15 @@ export default function CustomersPage() {
       }
     });
     return sorted;
-  }, [state.customers, query, type, sort, stats]);
+  }, [customers, query, type, sort, stats]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, pageCount);
   const visible = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
-  const registeredCount = state.customers.filter((c) => c.type === "registered").length;
-  const guestCount = state.customers.length - registeredCount;
-  const lifetimeValue = state.customers.reduce(
+  const registeredCount = initialRegisteredCount || customers.filter((c) => c.type === "registered").length;
+  const guestCount = initialGuestCount || (customers.length - registeredCount);
+  const lifetimeValue = initialLifetimeValue || customers.reduce(
     (sum, customer) => sum + (stats.get(customer.id)?.spend ?? 0),
     0,
   );
@@ -99,46 +111,62 @@ export default function CustomersPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Relationships"
+        eyebrow="Audience"
         title="Customers"
-        description="Registered shoppers and guest checkouts with their order history and lifetime value."
+        description="Profiles, delivery addresses and order history across Pakistan."
+        actions={
+          <div className="flex items-center gap-2">
+            <Badge variant="brand">
+              <UserRound className="h-3 w-3" />
+              {registeredCount} registered
+            </Badge>
+            <Badge variant="neutral">{guestCount} guest checkouts</Badge>
+          </div>
+        }
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        {[
-          { label: "Registered customers", value: registeredCount, icon: Users },
-          { label: "Guest checkouts", value: guestCount, icon: UserRound },
-          { label: "Lifetime value", value: formatPKR(lifetimeValue), icon: Users },
-        ].map((stat) => (
-          <Card key={stat.label}>
-            <CardContent className="flex items-start justify-between p-4">
-              <div>
-                <p className="text-[12px] font-medium text-ink-muted">{stat.label}</p>
-                <p className="mt-1.5 text-[20px] font-semibold leading-none text-ink tabular">
-                  {stat.value}
-                </p>
-              </div>
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
-                <stat.icon className="h-4.5 w-4.5" />
-              </span>
-            </CardContent>
-          </Card>
-        ))}
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-[12px] font-medium text-ink-muted">Total customers</p>
+            <p className="mt-1.5 text-[22px] font-semibold text-ink tabular">
+              {customers.length}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-[12px] font-medium text-ink-muted">Account conversion</p>
+            <p className="mt-1.5 text-[22px] font-semibold text-brand-700 tabular">
+              {customers.length
+                ? `${Math.round((registeredCount / customers.length) * 100)}%`
+                : "0%"}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-[12px] font-medium text-ink-muted">Lifetime revenue</p>
+            <p className="mt-1.5 text-[22px] font-semibold text-ink tabular">
+              {formatPKR(lifetimeValue)}
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
         <CardContent className="p-0">
-          <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center">
             <SearchInput
               value={query}
               onChange={(value) => {
                 setQuery(value);
                 setPage(1);
               }}
-              placeholder="Search name, email, phone or city…"
-              className="w-full lg:max-w-sm"
+              placeholder="Search by name, email, phone or city…"
+              className="w-full lg:max-w-xs"
             />
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Select
                 value={type}
                 onValueChange={(value) => {
@@ -146,21 +174,25 @@ export default function CustomersPage() {
                   setPage(1);
                 }}
               >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue />
+                <SelectTrigger className="w-[170px]">
+                  <SelectValue placeholder="All account types" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All customers</SelectItem>
+                  <SelectItem value="all">All account types</SelectItem>
                   <SelectItem value="registered">Registered</SelectItem>
-                  <SelectItem value="guest">Guest</SelectItem>
+                  <SelectItem value="guest">Guest checkout</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={sort} onValueChange={(value) => setSort(value as SortKey)}>
+
+              <Select
+                value={sort}
+                onValueChange={(value) => setSort(value as SortKey)}
+              >
                 <SelectTrigger className="w-[180px]">
-                  <SelectValue />
+                  <SelectValue placeholder="Sort" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="newest">Recently joined</SelectItem>
+                  <SelectItem value="newest">Newest joined</SelectItem>
                   <SelectItem value="spend-desc">Highest spend</SelectItem>
                   <SelectItem value="orders-desc">Most orders</SelectItem>
                   <SelectItem value="name">Name A–Z</SelectItem>
@@ -169,14 +201,23 @@ export default function CustomersPage() {
             </div>
           </div>
 
-          {loading ? (
-            <TableSkeleton rows={8} cols={6} />
-          ) : visible.length === 0 ? (
+          {visible.length === 0 ? (
             <EmptyState
               className="m-4"
               icon={<SearchX className="h-5 w-5" />}
-              title="No customers found"
-              description="Try a different search term or customer type."
+              title="No customers match your filter"
+              description="Try a different name, phone or city."
+              action={
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setQuery("");
+                    setType("all");
+                  }}
+                >
+                  Clear filter
+                </Button>
+              }
             />
           ) : (
             <>
@@ -184,16 +225,16 @@ export default function CustomersPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Customer</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>City</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead>Account</TableHead>
                     <TableHead className="text-right">Orders</TableHead>
                     <TableHead className="text-right">Total spend</TableHead>
-                    <TableHead>Registered</TableHead>
+                    <TableHead>Joined</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {visible.map((customer) => {
-                    const customerStats = stats.get(customer.id) ?? { orders: 0, spend: 0 };
+                    const cStats = stats.get(customer.id) ?? { orders: 0, spend: 0 };
                     return (
                       <TableRow key={customer.id}>
                         <TableCell>
@@ -202,29 +243,29 @@ export default function CustomersPage() {
                             <div className="min-w-0">
                               <Link
                                 href={`/customers/${customer.id}`}
-                                className="block truncate text-[13px] font-medium text-ink hover:text-brand-700"
+                                className="block max-w-[200px] truncate text-[13px] font-medium text-ink hover:text-brand-700"
                               >
                                 {customer.name}
                               </Link>
-                              <Badge
-                                variant={customer.type === "registered" ? "brand" : "neutral"}
-                                className="mt-0.5"
-                              >
-                                {customer.type === "registered" ? "Registered" : "Guest"}
-                              </Badge>
+                              <p className="truncate text-[11.5px] text-ink-muted">
+                                {customer.email} · {customer.phone}
+                              </p>
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell>
-                          <p className="truncate text-[12.5px] text-ink-soft">{customer.email}</p>
-                          <p className="text-[11.5px] text-ink-muted">{customer.phone}</p>
-                        </TableCell>
                         <TableCell>{customer.city}</TableCell>
-                        <TableCell className="text-right tabular">{customerStats.orders}</TableCell>
-                        <TableCell className="text-right font-medium text-ink tabular">
-                          {formatPKR(customerStats.spend)}
+                        <TableCell>
+                          <Badge variant={customer.type === "registered" ? "brand" : "neutral"}>
+                            {customer.type === "registered" ? "Registered" : "Guest"}
+                          </Badge>
                         </TableCell>
-                        <TableCell className="whitespace-nowrap">
+                        <TableCell className="text-right font-medium text-ink tabular">
+                          {cStats.orders}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold text-ink tabular">
+                          {formatPKR(cStats.spend)}
+                        </TableCell>
+                        <TableCell className="text-ink-muted">
                           {formatDate(customer.registeredAt)}
                         </TableCell>
                       </TableRow>
